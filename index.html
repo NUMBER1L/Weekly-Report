@@ -383,15 +383,9 @@ body.light .hr-sum-total .hr-sum-val{color:var(--teal)}
       <div class="sec">OT ล่วงเวลา — รายวันในสัปดาห์นี้</div>
       <div id="ot-head"></div>
       <div class="kpis" id="ot-kpi" style="margin:12px 0 14px"></div>
-      <div class="r2l">
-        <div class="card">
-          <div class="ch"><div><div class="ct">ชั่วโมง OT รายวัน</div><div class="cs">จัดตามวันที่กะ · แยกสีตามแผนก</div></div><div style="display:flex;gap:5px;flex:none"><button class="tgl on" id="otMhrs" onclick="setOTMode('hrs')">ชม.</button><button class="tgl" id="otMpct" onclick="setOTMode('pct')">% สัดส่วน</button></div></div>
-          <div style="position:relative;height:250px"><canvas id="cOTDaily"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="ch"><div><div class="ct">ตาราง OT รายวัน</div><div class="cs">ชั่วโมง · คนที่ทำ OT · เฉลี่ยต่อคน</div></div><span class="tag tg">TABLE</span></div>
-          <div id="ot-tbl" style="overflow-x:auto;margin-top:4px"></div>
-        </div>
+      <div class="card">
+        <div class="ch"><div><div class="ct">ชั่วโมง OT รายวัน</div><div class="cs">จัดตามวันที่กะ · แยกสีตามแผนก</div></div><div style="display:flex;gap:5px;flex:none"><button class="tgl on" id="otMhrs" onclick="setOTMode('hrs')">ชม.</button><button class="tgl" id="otMpct" onclick="setOTMode('pct')">% สัดส่วน</button></div></div>
+        <div style="position:relative;height:280px"><canvas id="cOTDaily"></canvas></div>
       </div>
       <div class="card" style="margin-top:14px">
         <div class="ch"><div><div class="ct">สรุปรายแผนก — เฉลี่ยทั้งสัปดาห์</div><div class="cs">ดูคอลัมน์ที่ไฮไลต์ — แท่งยิ่งยาว แผนกนั้นยิ่งทำ OT หนัก</div></div><span class="tag to">PER DEPT</span></div>
@@ -1828,7 +1822,7 @@ function renderOT(wkey){
   const rows=inWeek.filter(otCounted);
   const dropped=inWeek.filter(d=>!otCounted(d));
   const head=document.getElementById('ot-head'), kpi=document.getElementById('ot-kpi');
-  const tbl=document.getElementById('ot-tbl'), note=document.getElementById('ot-note');
+  const note=document.getElementById('ot-note');
   const dtbl=document.getElementById('ot-dept-tbl');
   if(CH['cOTDaily']){CH['cOTDaily'].destroy();delete CH['cOTDaily'];}
   const sum=a=>a.reduce((s,d)=>s+d.hrs,0);
@@ -1837,7 +1831,7 @@ function renderOT(wkey){
   if(!rows.length){
     head.innerHTML='';
     kpi.innerHTML='<div class="kpi" style="--acc:#94A3B8"><div class="kl">OT สัปดาห์นี้</div><div class="kv">—</div><div class="ks">ยังไม่มีไฟล์ OT ของสัปดาห์นี้</div></div>';
-    tbl.innerHTML=''; if(dtbl) dtbl.innerHTML='';
+    if(dtbl) dtbl.innerHTML='';
     const other=[...new Set(OT_DATA.map(d=>d.week))].sort();
     note.textContent = other.length ? ('ไฟล์ OT ที่โหลดไว้มีข้อมูลของสัปดาห์: ' + other.join(', ')) : '';
     return;
@@ -1910,20 +1904,6 @@ function renderOT(wkey){
                 ticks:{...tk, callback:v=> isPct ? (v+'%') : fmt(v)}} }
   });
 
-  let h='<table class="stbl"><thead><tr><th>วัน</th>';
-  depts.forEach(g=>{ h+='<th style="color:'+deptColor(g)+'">'+g+'</th>'; });
-  h+='<th>รวม</th><th>คน</th><th>ชม./คน</th></tr></thead><tbody>';
-  days.forEach(dy=>{
-    const dr=rows.filter(r=>r.date===dy.iso);
-    const t=sum(dr), p=uniq(dr,d=>d.emp);
-    h+='<tr><td>'+dy.lbl+'</td>';
-    depts.forEach(g=>{ const v=sum(dr.filter(r=>r.dept===g)); h+='<td>'+(v?v.toFixed(1):'—')+'</td>'; });
-    h+='<td style="font-weight:700">'+(t?t.toFixed(1):'—')+'</td><td>'+(p||'—')+'</td><td>'+(p?(t/p).toFixed(2):'—')+'</td></tr>';
-  });
-  h+='<tr><td>รวม</td>';
-  depts.forEach(g=>{ h+='<td>'+sum(rows.filter(r=>r.dept===g)).toFixed(1)+'</td>'; });
-  h+='<td>'+totH.toFixed(1)+'</td><td>'+totP+'</td><td>'+(totH/totMD).toFixed(2)+'</td></tr></tbody></table>';
-  tbl.innerHTML=h;
 
   // ── สรุปรายแผนก: เฉลี่ยต่อคนต่อวัน ทั้งสัปดาห์ ──────────────────
   // ชม./คน/วัน = OT รวมของแผนก ÷ คนที่ทำ OT ÷ จำนวนวันที่แผนกนั้นมี OT
@@ -1949,9 +1929,9 @@ function renderOT(wkey){
   let dh='<table class="stbl"><thead><tr>'
     +'<th>แผนก</th><th>OT รวม (ชม.)</th><th>คนที่ทำ OT</th>'
     +'<th style="'+HL+';border-left:2px solid var(--teal);border-right:2px solid var(--teal)" '
-    +'title="OT รวม หารด้วยจำนวนคนที่ทำ OT หารด้วยจำนวนวันที่แผนกนั้นมี OT">ชม./คน/วัน<div style="font-size:9px;font-weight:600;opacity:.75;letter-spacing:0">ตัวหลัก · ดูอันนี้</div></th>'
+    +'title="OT รวม หารด้วยจำนวนคนที่ทำ OT หารด้วยจำนวนวันที่แผนกนั้นมี OT">ชม./คน/วัน<div style="font-size:9px;font-weight:600;opacity:.75;letter-spacing:0">เกลี่ยทั้งสัปดาห์ · ดูอันนี้</div></th>'
     +'<th>ชม./คน/สัปดาห์</th>'
-    +'<th title="เฉลี่ยความยาวของ OT แต่ละครั้งที่ทำ">ต่อครั้งที่ทำ OT</th>'
+    +'<th title="OT รวม หารด้วยจำนวนคน-วันที่ทำ OT จริง — ค่าเดียวกับคอลัมน์ ชม./คน ที่ทำ OT ในตารางรายวัน">ชม./คน ที่ทำ OT<div style="font-size:9px;font-weight:600;opacity:.7;letter-spacing:0">เฉพาะวันที่ทำ</div></th>'
     +'<th title="ต้องกรอกจำนวนพนักงานทั้งแผนกก่อน">ต่อหัวทั้งแผนก/วัน</th></tr></thead><tbody>';
   stat.forEach(s=>{
     const c=deptColor(s.g);
