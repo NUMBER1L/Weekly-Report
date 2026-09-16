@@ -1930,27 +1930,21 @@ function renderOT(wkey){
     +'<th>แผนก</th><th>OT รวม (ชม.)</th><th>คนที่ทำ OT</th>'
     +'<th style="'+HL+';border-left:2px solid var(--teal);border-right:2px solid var(--teal)" '
     +'title="OT รวม หารด้วยจำนวนคนที่ทำ OT หารด้วยจำนวนวันที่แผนกนั้นมี OT">ชม./คน/วัน<div style="font-size:9px;font-weight:600;opacity:.75;letter-spacing:0">เกลี่ยทั้งสัปดาห์ · ดูอันนี้</div></th>'
-    +'<th>ชม./คน/สัปดาห์</th>'
-    +'<th title="OT รวม หารด้วยจำนวนคน-วันที่ทำ OT จริง — ค่าเดียวกับคอลัมน์ ชม./คน ที่ทำ OT ในตารางรายวัน">ชม./คน ที่ทำ OT<div style="font-size:9px;font-weight:600;opacity:.7;letter-spacing:0">เฉพาะวันที่ทำ</div></th>'
-    +'<th title="ต้องกรอกจำนวนพนักงานทั้งแผนกก่อน">ต่อหัวทั้งแผนก/วัน</th></tr></thead><tbody>';
+    +'<th>ชม./คน/สัปดาห์</th></tr></thead><tbody>';
   stat.forEach(s=>{
     const c=deptColor(s.g);
     dh+='<tr><td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+c+';margin-right:7px"></span>'+s.g+'</td>'
       +'<td>'+s.h.toFixed(1)+'</td>'
       +'<td>'+s.p+(s.hc?' / '+s.hc:'')+'</td>'
       +'<td style="white-space:nowrap;'+HL+';border-left:2px solid var(--teal);border-right:2px solid var(--teal)"><span style="font-weight:700;font-size:14px">'+nz(s.perDay,2)+'</span>'+bar(s.perDay,c)+'</td>'
-      +'<td>'+nz(s.perWeek,2)+'</td>'
-      +'<td>'+nz(s.perShot,2)+'</td>'
-      +'<td>'+(s.headDay!=null?s.headDay.toFixed(2):'<span style="opacity:.55">—</span>')+'</td></tr>';
+      +'<td>'+nz(s.perWeek,2)+'</td></tr>';
   });
   const allDays=uniq(rows,d=>d.date);
   let hcSum=0, hcFull=true;
   stat.forEach(s=>{ if(s.hc!=null) hcSum+=s.hc; else hcFull=false; });
   dh+='<tr><td>รวมทุกแผนก</td><td>'+totH.toFixed(1)+'</td><td>'+totP+(hcFull?' / '+hcSum:'')+'</td>'
     +'<td style="font-weight:700;'+HL+';border-left:2px solid var(--teal);border-right:2px solid var(--teal)">'+(totP&&allDays?(totH/totP/allDays).toFixed(2):'—')+'</td>'
-    +'<td>'+(totP?(totH/totP).toFixed(2):'—')+'</td>'
-    +'<td>'+(totMD?(totH/totMD).toFixed(2):'—')+'</td>'
-    +'<td>'+((hcFull&&hcSum&&allDays)?(totH/hcSum/allDays).toFixed(2):'—')+'</td></tr>';
+    +'<td>'+(totP?(totH/totP).toFixed(2):'—')+'</td></tr>';
   dh+='</tbody></table>';
   dtbl.innerHTML=dh;
 
