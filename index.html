@@ -1186,14 +1186,26 @@ function sizeGroup(raw){
 // เกรดที่ระบบรู้จัก = เกรดที่มีสีใน GRADE_COLORS
 //   เพิ่มเกรดใหม่ → ใส่กฎใน normalizeGrade/displayGrade (ถ้าต้องแปลงชื่อ) + ใส่สีใน GRADE_COLORS แล้วระบบจะเลิกเตือน
 const KNOWN_TYPES=['DRY-CUT','DRY-Block','Fresh'];
+// t = หัวข้อ (บอกว่าผิดอะไร), d = วิธีแก้ (บอกว่าต้องทำอะไร)
 const ISSUE_INFO={
-  grade:   {t:'เกรดที่ระบบไม่รู้จัก', d:'แสดงเป็นเกรดแยก ไม่ถูกรวมกับเกรดที่ควรเป็น — อาจพิมพ์ผิด หรือเป็นเกรดใหม่ที่ยังไม่ได้เพิ่มเข้าระบบ', warn:true},
-  type:    {t:'ประเภทที่ระบบไม่รู้จัก', d:'ไม่ถูกนับในการ์ด DRY-CUT / DRY-Block — ต้องเป็น DRY-CUT, DRY-Block หรือ Fresh เท่านั้น', warn:true},
-  size:    {t:'ขนาดบรรจุที่ระบบไม่รู้จัก', d:'ไม่ถูกนับในตารางและกราฟน้ำหนักบรรจุ', warn:true},
-  match:   {t:'บรรจุที่จับคู่เกรดกับ Data-Yield ไม่ได้', d:'เกรดในชีท Productivity ไม่ตรงกับเกรดของ LOT นั้นในชีท Data-Yield จึงไม่ถูกนับในตารางบรรจุ', warn:true},
-  boundary:{t:'บรรจุบันทึกคนละชีท', d:'LOT ผลิตสัปดาห์นี้ แต่บันทึกบรรจุไว้ในชีท Productivity อีกชีท จึงไม่ถูกนับ', warn:true},
-  nolot:   {t:'บรรจุที่ไม่มี LOT ใน Data-Yield', d:'อาจเป็นล็อตของปีก่อน หรือพิมพ์เลข LOT ผิด', warn:false}
+  grade:   {t:'ชื่อเกรดที่ระบบไม่รู้จัก (ชีท Data-Yield)', d:'ถ้าพิมพ์ผิด → แก้ชื่อในไฟล์ · ถ้าเป็นเกรดใหม่ → แจ้งผู้ดูแลให้เพิ่มเข้าระบบ', warn:true},
+  type:    {t:'ช่องประเภทเส้นไม่ถูกต้อง (ชีท Data-Yield)', d:'ช่องประเภทต้องเป็น DRY-CUT, DRY-Block หรือ Fresh เท่านั้น → แก้ในไฟล์', warn:true},
+  size:    {t:'ขนาดบรรจุที่ระบบไม่รู้จัก', d:'ถ้าพิมพ์ผิด → แก้ขนาดในไฟล์ · ถ้าเป็นขนาดใหม่ → แจ้งผู้ดูแลให้เพิ่มเข้าระบบ', warn:true},
+  match:   {t:'ลงบรรจุเป็นเกรดที่ LOT นั้นไม่ได้ผลิต', d:'เช็คว่าพิมพ์เลข LOT หรือชื่อเกรดผิดไหม → แก้ในไฟล์', warn:true},
+  boundary:{t:'บรรจุห่างจากวันผลิตเกิน 6 สัปดาห์ และลงไว้คนละชีท', d:'ถ้าเป็นของเก่ามาบรรจุจริง ไม่ต้องแก้ · ถ้าพิมพ์เลข LOT ผิด → แก้ในไฟล์', warn:true},
+  nolot:   {t:'หา LOT นี้ใน Data-Yield ไม่เจอ', d:'อาจเป็น LOT ของปีก่อน หรือพิมพ์เลข LOT ผิด (ไม่นับเป็นคำเตือน)', warn:false}
 };
+// ประโยคของแต่ละรายการ — อ่านแล้วรู้เลยว่าผิดตรงไหน
+function issueLine(kind, e){
+  const lots=[...e.lots].slice(0,4).join(', ')+(e.lots.size>4?' …':'');
+  const amt=e.kg? fmt(Math.round(e.kg))+' kg' : (e.units? fmt(e.units)+' ชุด' : e.n+' แถว');
+  const L=lots? 'LOT '+lots : 'ไม่มีเลข LOT';
+  if(kind==='match')    return '<b>'+L+'</b> ลงบรรจุเป็น <b>'+e.what+'</b> '+amt+' — แต่ '+L+' ผลิตแค่ '+e.have;
+  if(kind==='boundary') return '<b>'+L+'</b> ลงบรรจุเป็น <b>'+e.what+'</b> '+amt;
+  if(kind==='nolot')    return '<b>'+L+'</b> ลงบรรจุเป็น <b>'+e.what+'</b> '+amt;
+  if(kind==='size')     return 'ขนาด <b>'+e.what+'</b> '+amt+' <span class="warn-m">· '+L+'</span>';
+  return '<b>'+e.what+'</b> '+amt+' <span class="warn-m">· '+L+'</span>';   // grade / type
+}
 let WEEK_ISSUES={};
 let OWN_COUNTED=new Set();   // แถวบรรจุที่นับได้ในชีทของตัวเองแล้ว (ห้ามนับข้ามชีทซ้ำ) — ตั้งค่าใน computeIssues
 function sheetTagOf(w){ return (w.num>=NEW_SHEET_FROM_WEEK && PROD_NEW_DATA.length>0) ? 'N' : 'O'; }
@@ -1213,8 +1225,8 @@ function prodSourcesOf(w){
 }
 function computeIssues(){
   const out={};
-  const bucket=(wk,kind,key,label)=>{ const w=out[wk]||(out[wk]={}); const k=w[kind]||(w[kind]={});
-    return k[key]||(k[key]={label:label, n:0, kg:0, units:0, lots:new Set()}); };
+  const bucket=(wk,kind,key,label,have)=>{ const w=out[wk]||(out[wk]={}); const k=w[kind]||(w[kind]={});
+    return k[key]||(k[key]={what:label, have:have||'', n:0, kg:0, units:0, lots:new Set()}); };
   // 1) Data-Yield: เกรด / ประเภท ที่ไม่รู้จัก
   YIELD_DATA.forEach(d=>{
     if(!GRADE_COLORS[d.grade]){ const b=bucket(d.week,'grade',d.grade,'"'+(d.rawGrade||d.grade)+'"'); b.n++; b.units+=d.units||0; if(d.lot) b.lots.add(d.lot); }
@@ -1243,16 +1255,16 @@ function computeIssues(){
         const other=sg ? WEEKS.filter(w=>sheetTagOf(w)!==tag && Math.abs(w.num-pn)<=16 && okIn(w))
                               .sort((a,b)=>Math.abs(a.num-pn)-Math.abs(b.num-pn)) : [];
         if(other.length){
-          const w0=other[0]; const b=bucket(w0.key,'boundary',p.lot+'|'+p.gradeRaw+'|'+sg,'"'+p.gradeRaw+'" '+sg); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot); return;
+          const w0=other[0]; const b=bucket(w0.key,'boundary',p.lot+'|'+p.gradeRaw+'|'+sg,p.gradeRaw+' '+sg); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot); return;
         }
         const pw=WEEKS.find(w=>w.key===p.week);
-        if(pw && sheetTagOf(pw)===tag){ const b=bucket(p.week,'nolot',p.gradeRaw+'|'+(sg||p.size),'"'+p.gradeRaw+'" '+(sg||p.size)); b.n++; b.kg+=p.kg||0; if(p.lot) b.lots.add(p.lot); }
+        if(pw && sheetTagOf(pw)===tag){ const b=bucket(p.week,'nolot',p.gradeRaw+'|'+(sg||p.size),p.gradeRaw+' '+(sg||p.size)); b.n++; b.kg+=p.kg||0; if(p.lot) b.lots.add(p.lot); }
         return;
       }
       const w0=same.slice().sort((a,b)=>Math.abs(a.num-pn)-Math.abs(b.num-pn))[0];
       if(!sg){ const b=bucket(w0.key,'size',p.size+'|'+p.gradeRaw,'"'+p.size+'" (เกรด '+p.gradeRaw+')'); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot); return; }
-      const have=[...lotG[w0.key][p.lot]].join(' / ');
-      const b=bucket(w0.key,'match',p.lot+'|'+p.gradeRaw+'|'+sg,'"'+p.gradeRaw+'" '+sg+' — Yield LOT นี้มี '+have); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot);
+      const have=[...lotG[w0.key][p.lot]].join(', ');
+      const b=bucket(w0.key,'match',p.lot+'|'+p.gradeRaw+'|'+sg,p.gradeRaw+' '+sg,have); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot);
     });
   });
   return out;
@@ -1266,22 +1278,17 @@ function renderIssues(wk){
   const cnt=issueCount(wk);
   const order=['grade','type','size','match','boundary','nolot'];
   let kgTot=0; order.forEach(k=>{ if(w[k]&&ISSUE_INFO[k].warn) Object.values(w[k]).forEach(e=>kgTot+=e.kg); });
-  let h='<details class="warn '+(cnt?'':'info')+'" open><summary><b>'+(cnt?'⚠ สัปดาห์นี้มีข้อมูลที่ระบบไม่ได้นับ '+cnt+' รายการ':'ℹ มีข้อมูลบรรจุที่ไม่มี LOT ใน Data-Yield')+'</b>'
-       +(kgTot?' <span class="warn-kg">(น้ำหนักบรรจุที่ไม่ถูกนับ '+fmt(kgTot)+' kg)</span>':'')+'</summary>';
+  let h='<details class="warn '+(cnt?'':'info')+'" open><summary><b>'+(cnt?'⚠ สัปดาห์นี้มี '+cnt+' รายการที่ยังไม่ถูกนับ':'ℹ มีข้อมูลบรรจุที่หา LOT ใน Data-Yield ไม่เจอ')+'</b>'
+       +(kgTot?' <span class="warn-kg">· น้ำหนักบรรจุรวม '+fmt(Math.round(kgTot))+' kg</span>':'')+'</summary>';
   order.forEach(k=>{
     if(!w[k]) return;
     const items=Object.values(w[k]).sort((a,b)=>(b.kg-a.kg)||(b.units-a.units));
-    h+='<div class="warn-grp'+(ISSUE_INFO[k].warn?'':' muted')+'"><div class="warn-t">'+ISSUE_INFO[k].t+' <span>· '+items.length+' รายการ</span></div>'
-      +'<div class="warn-d">'+ISSUE_INFO[k].d+'</div><ul>';
-    items.slice(0,8).forEach(e=>{
-      const lots=[...e.lots].slice(0,4).join(', ')+(e.lots.size>4?' …':'');
-      const amt=e.kg? fmt(e.kg)+' kg' : (e.units? e.units+' ชุด' : e.n+' แถว');
-      h+='<li>'+e.label+'<span class="warn-m"> · LOT '+(lots||'-')+' · '+amt+'</span></li>';
-    });
+    h+='<div class="warn-grp'+(ISSUE_INFO[k].warn?'':' muted')+'"><div class="warn-t">'+ISSUE_INFO[k].t+(items.length>1?' <span>· '+items.length+' รายการ</span>':'')+'</div><ul>';
+    items.slice(0,8).forEach(e=>{ h+='<li>'+issueLine(k,e)+'</li>'; });
     if(items.length>8) h+='<li class="warn-m">… และอีก '+(items.length-8)+' รายการ</li>';
-    h+='</ul></div>';
+    h+='</ul><div class="warn-d">👉 '+ISSUE_INFO[k].d+'</div></div>';
   });
-  h+='<div class="warn-fix">วิธีแก้: ถ้าพิมพ์ผิด → แก้ในไฟล์ Excel แล้วโหลดไฟล์ใหม่ · ถ้าเป็นเกรดหรือขนาดใหม่ → แจ้งผู้ดูแลให้เพิ่มเข้าระบบ</div></details>';
+  h+='<div class="warn-fix">แก้ในไฟล์ Excel แล้วโหลดไฟล์ใหม่ รายการที่แก้แล้วจะหายไปเอง</div></details>';
   box.innerHTML=h;
 }
 
@@ -1311,7 +1318,7 @@ function buildWeeks(){
   const nBad=WEEKS.filter(w=>issueCount(w.key)>0).length;
   const sumEl=document.getElementById('wn-sum');
   if(sumEl) sumEl.textContent = nBad ? '⚠ '+nBad+' สัปดาห์มีข้อมูลที่ไม่ได้นับ' : '';
-  nav.innerHTML=WEEKS.map(w=>`<button class="week-btn" id="wb-${w.key}" onclick="selectWeek('${w.key}')" title="${issueCount(w.key)?'มีข้อมูลที่ระบบไม่ได้นับ '+issueCount(w.key)+' รายการ':''}">${w.label}${issueCount(w.key)?'<span class="wbadge">'+issueCount(w.key)+'</span>':''}<br><span style="font-size:9px;font-weight:400;opacity:.7">${w.range}</span></button>`).join('');
+  nav.innerHTML=WEEKS.map(w=>`<button class="week-btn" id="wb-${w.key}" onclick="selectWeek('${w.key}')" title="${issueCount(w.key)?'มี '+issueCount(w.key)+' รายการที่ยังไม่ถูกนับ':''}">${w.label}${issueCount(w.key)?'<span class="wbadge">'+issueCount(w.key)+'</span>':''}<br><span style="font-size:9px;font-weight:400;opacity:.7">${w.range}</span></button>`).join('');
 }
 
 function fmtD(s){ const d=new Date(s); return `${d.getDate()}/${d.getMonth()+1}`; }
