@@ -104,6 +104,10 @@ body.light .tgl.on{background:var(--teal);color:#fff;border-color:var(--teal)}
 .wbadge{display:inline-block;margin-left:5px;min-width:16px;padding:0 5px;border-radius:9px;background:#DC2626;color:#fff;font-size:9.5px;font-weight:700;line-height:15px;vertical-align:1px}
 .week-btn.active .wbadge{background:#fff;color:#DC2626}
 .wn-sum{font-size:11px;font-weight:700;color:#DC2626;flex-shrink:0;white-space:nowrap}
+/* กันหน้าเว็บเลื่อนไปด้านข้าง: การ์ดใน grid หดได้ + กราฟไม่กว้างเกินการ์ด */
+body{overflow-x:clip}
+.card{min-width:0}
+.card canvas{max-width:100%}
 details.warn{background:#FEF2F2;border:1px solid #FECACA;border-left:4px solid #DC2626;border-radius:6px;padding:12px 16px;color:#7F1D1D;font-size:12.5px}
 details.warn.info{background:var(--bg2);border-color:var(--border);border-left-color:#94A3B8;color:var(--text)}
 details.warn summary{cursor:pointer;font-size:13px}
@@ -1192,7 +1196,7 @@ const ISSUE_INFO={
   type:    {t:'ช่องประเภทเส้นไม่ถูกต้อง (ชีท Data-Yield)', d:'ช่องประเภทต้องเป็น DRY-CUT, DRY-Block หรือ Fresh เท่านั้น → แก้ในไฟล์', warn:true},
   size:    {t:'ขนาดบรรจุที่ระบบไม่รู้จัก', d:'ถ้าพิมพ์ผิด → แก้ขนาดในไฟล์ · ถ้าเป็นขนาดใหม่ → แจ้งผู้ดูแลให้เพิ่มเข้าระบบ', warn:true},
   match:   {t:'ลงบรรจุเป็นเกรดที่ LOT นั้นไม่ได้ผลิต', d:'เช็คว่าพิมพ์เลข LOT หรือชื่อเกรดผิดไหม → แก้ในไฟล์', warn:true},
-  boundary:{t:'บรรจุห่างจากวันผลิตเกิน 6 สัปดาห์ และลงไว้คนละชีท', d:'ถ้าเป็นของเก่ามาบรรจุจริง ไม่ต้องแก้ · ถ้าพิมพ์เลข LOT ผิด → แก้ในไฟล์', warn:true},
+  boundary:{t:'ลงบรรจุไว้คนละชีท และระบบนับให้ไม่ได้', d:'เช็คว่าวันที่บรรจุหรือเลข LOT ถูกไหม → แก้ในไฟล์', warn:true},
   nolot:   {t:'หา LOT นี้ใน Data-Yield ไม่เจอ', d:'อาจเป็น LOT ของปีก่อน หรือพิมพ์เลข LOT ผิด (ไม่นับเป็นคำเตือน)', warn:false}
 };
 // ประโยคของแต่ละรายการ — อ่านแล้วรู้เลยว่าผิดตรงไหน
@@ -1201,7 +1205,10 @@ function issueLine(kind, e){
   const amt=e.kg? fmt(Math.round(e.kg))+' kg' : (e.units? fmt(e.units)+' ชุด' : e.n+' แถว');
   const L=lots? 'LOT '+lots : 'ไม่มีเลข LOT';
   if(kind==='match')    return '<b>'+L+'</b> ลงบรรจุเป็น <b>'+e.what+'</b> '+amt+' — แต่ '+L+' ผลิตแค่ '+e.have;
-  if(kind==='boundary') return '<b>'+L+'</b> ลงบรรจุเป็น <b>'+e.what+'</b> '+amt;
+  if(kind==='boundary'){
+    const pw=[...(e.packWk||[])].sort((a,b)=>a-b), gap=pw.length? pw[0]-e.prodWk : 0;
+    return '<b>'+L+'</b> (ผลิต W'+e.prodWk+') ลงบรรจุเป็น <b>'+e.what+'</b> '+amt+(pw.length?' เมื่อ '+pw.map(x=>'W'+x).join(', ')+' — หลังผลิต '+gap+' สัปดาห์':'');
+  }
   if(kind==='nolot')    return '<b>'+L+'</b> ลงบรรจุเป็น <b>'+e.what+'</b> '+amt;
   if(kind==='size')     return 'ขนาด <b>'+e.what+'</b> '+amt+' <span class="warn-m">· '+L+'</span>';
   return '<b>'+e.what+'</b> '+amt+' <span class="warn-m">· '+L+'</span>';   // grade / type
@@ -1210,13 +1217,11 @@ let WEEK_ISSUES={};
 let OWN_COUNTED=new Set();   // แถวบรรจุที่นับได้ในชีทของตัวเองแล้ว (ห้ามนับข้ามชีทซ้ำ) — ตั้งค่าใน computeIssues
 function sheetTagOf(w){ return (w.num>=NEW_SHEET_FROM_WEEK && PROD_NEW_DATA.length>0) ? 'N' : 'O'; }
 
-// ── บรรจุที่ลงไว้ "อีกชีท" (รอยต่อ W17/W18: LOT ผลิต W17 แต่พนักงานลงบรรจุในชีทใหม่แล้ว)
-//    นับให้ได้ถ้า LOT+เกรดตรง และวันบรรจุอยู่ระหว่างวันผลิต ถึง +CROSS_SHEET_DAYS วัน
-//    (กรอบเวลากันเลข LOT ซ้ำของ Kelp / LOT เก่าที่เลขตรงกันโดยบังเอิญ)
-const CROSS_SHEET_DAYS = 42;
+// ── บรรจุที่ลงไว้ "อีกชีท" (เช่น LOT ผลิต W17 แต่พนักงานลงบรรจุในชีทใหม่ / ของเก่าเก็บไว้มาบรรจุทีหลัง)
+//    นับให้ถ้า LOT+เกรดตรง และวันบรรจุไม่ก่อนวันผลิต — ไม่จำกัดว่าบรรจุหลังผลิตนานแค่ไหน (ผู้ใช้ยืนยัน)
+//    เลข LOT ซ้ำของ Kelp ไม่ปนกัน เพราะต้องตรงทั้ง LOT และเกรด
 function crossSheetOk(p, firstDate){
-  if(!firstDate || !p.date || p.date < firstDate) return false;
-  return (new Date(p.date) - new Date(firstDate)) / 86400000 <= CROSS_SHEET_DAYS;
+  return !!firstDate && !!p.date && p.date >= firstDate;
 }
 // แหล่งบรรจุ [ชีทของสัปดาห์นี้, อีกชีท] — อีกชีทว่างถ้าไฟล์มีชีทเดียว
 function prodSourcesOf(w){
@@ -1247,16 +1252,18 @@ function computeIssues(){
       if(sg && WEEKS.some(w=>sheetTagOf(w)===tag && okIn(w))){ OWN_COUNTED.add(p); return; }
       // นับข้ามชีทได้ (รอยต่อ W17/W18) — เหมือน renderWeek
       if(sg && WEEKS.some(w=>sheetTagOf(w)!==tag && okIn(w) && crossSheetOk(p, lotD[w.key][p.lot]))) return;
+      // LOT+เกรดตรงกับสัปดาห์ที่ใช้อีกชีท (ของเก่าเก็บไว้แล้วมาบรรจุทีหลัง ไม่เกิน 16 สัปดาห์)
+      //   ต้องเช็คก่อน "match" — ไม่งั้นถ้าบังเอิญมี Kelp เลข LOT เดียวกันใกล้วันบรรจุ จะเตือนผิดว่า "LOT นี้ผลิตแค่ Kelp"
+      const other=sg ? WEEKS.filter(w=>sheetTagOf(w)!==tag && w.num<=pn && pn-w.num<=16 && okIn(w))   // บรรจุต้องไม่ก่อนผลิต
+                            .sort((a,b)=>Math.abs(a.num-pn)-Math.abs(b.num-pn)) : [];
+      if(other.length){
+        const w0=other[0]; const b=bucket(w0.key,'boundary',p.lot+'|'+p.gradeRaw+'|'+sg,p.gradeRaw+' '+sg);
+        b.n++; b.kg+=p.kg||0; b.lots.add(p.lot); b.prodWk=w0.num; (b.packWk=b.packWk||new Set()).add(pn); return;
+      }
       const near=WEEKS.filter(w=>lotG[w.key]&&lotG[w.key][p.lot]&&Math.abs(w.num-pn)<=3);
       const same=near.filter(w=>sheetTagOf(w)===tag);
       // ใช้หน้าต่าง ±3 สัปดาห์เฉพาะตอนเลือกว่าจะเตือนที่สัปดาห์ไหน (กัน LOT เลขซ้ำของ Kelp กับเส้นแห้ง)
       if(!same.length){
-        // LOT+เกรดตรงกับสัปดาห์ที่ใช้อีกชีท (กว้างกว่า ±3 — เช่นเก็บ aging ไว้แพ็คทีหลังหลายสัปดาห์ แต่ไม่เกิน 16 สัปดาห์)
-        const other=sg ? WEEKS.filter(w=>sheetTagOf(w)!==tag && Math.abs(w.num-pn)<=16 && okIn(w))
-                              .sort((a,b)=>Math.abs(a.num-pn)-Math.abs(b.num-pn)) : [];
-        if(other.length){
-          const w0=other[0]; const b=bucket(w0.key,'boundary',p.lot+'|'+p.gradeRaw+'|'+sg,p.gradeRaw+' '+sg); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot); return;
-        }
         const pw=WEEKS.find(w=>w.key===p.week);
         if(pw && sheetTagOf(pw)===tag){ const b=bucket(p.week,'nolot',p.gradeRaw+'|'+(sg||p.size),p.gradeRaw+' '+(sg||p.size)); b.n++; b.kg+=p.kg||0; if(p.lot) b.lots.add(p.lot); }
         return;
@@ -1327,7 +1334,13 @@ function selectWeek(key){
   CUR_WEEK=key;
   document.querySelectorAll('.week-btn').forEach(b=>b.classList.remove('active'));
   const btn=document.getElementById(`wb-${key}`);
-  if(btn){btn.classList.add('active');btn.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}
+  if(btn){
+    btn.classList.add('active');
+    // เลื่อนเฉพาะแถบปุ่มสัปดาห์ให้ปุ่มอยู่กลาง — ห้ามใช้ scrollIntoView เพราะจะเลื่อนทั้งหน้าไปด้านข้างด้วย
+    const nav=btn.closest('.week-nav');
+    if(nav){ const r=btn.getBoundingClientRect(), n=nav.getBoundingClientRect();
+      nav.scrollLeft += (r.left+r.width/2)-(n.left+n.width/2); }   // ไม่ใช้ smooth — วาดกราฟหนักๆ ต่อทันทีจะทำให้ animation ค้างครึ่งทาง
+  }
   const wk=WEEKS.find(w=>w.key===key);
   document.getElementById('t2').textContent=`${wk.label}: ${wk.range}`;
   renderWeek(key);
@@ -1575,7 +1588,7 @@ function renderWeek(wkey){
     const dg = resolvePackGrade(d, allowed);
     if(allowed.has(dg)) wProdByLot.push(Object.assign({}, d, {dg}));
   });
-  // + บรรจุที่ลงไว้อีกชีท (รอยต่อ W17/W18) — เฉพาะแถวที่ยังไม่ถูกนับในชีทตัวเอง และบรรจุภายใน CROSS_SHEET_DAYS วันหลังผลิต
+  // + บรรจุที่ลงไว้อีกชีท — เฉพาะแถวที่ยังไม่ถูกนับในชีทตัวเอง และวันบรรจุไม่ก่อนวันผลิต (ดู crossSheetOk)
   const lotFirstDate = {};
   wdata.forEach(d=>{ if(d.lot && (!lotFirstDate[d.lot] || d.date<lotFirstDate[d.lot])) lotFirstDate[d.lot]=d.date; });
   const OTHER_SRC = wkObj ? prodSourcesOf(wkObj)[1] : [];
