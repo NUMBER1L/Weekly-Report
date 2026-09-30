@@ -275,17 +275,17 @@ body.light .hr-sum-total .hr-sum-val{color:var(--teal)}
         <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
           <div class="kl" style="margin-bottom:8px">Total Yield DRY-CUT</div>
           <div id="yieldCutVal" style="font-family:'Inter',sans-serif;font-size:44px;font-weight:600;color:#1E40AF;letter-spacing:-.02em">—</div>
-          <div class="ks" style="margin-top:4px">% เฉลี่ยรวมทุก Grade</div>
+          <div class="ks" style="margin-top:4px">ถ่วงน้ำหนักตามน้ำหนักเส้นแห้ง</div>
         </div>
         <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
           <div class="kl" style="margin-bottom:8px">Total Yield DRY-Block</div>
           <div id="yieldBlockVal" style="font-family:'Inter',sans-serif;font-size:44px;font-weight:600;color:#B45309;letter-spacing:-.02em">—</div>
-          <div class="ks" style="margin-top:4px">% เฉลี่ยรวมทุก Grade</div>
+          <div class="ks" style="margin-top:4px">ถ่วงน้ำหนักตามน้ำหนักเส้นแห้ง</div>
         </div>
         <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
           <div class="kl" style="margin-bottom:8px">Total Yield Kelp</div>
           <div id="yieldKelpVal" style="font-family:'Inter',sans-serif;font-size:44px;font-weight:600;color:#15803D;letter-spacing:-.02em">—</div>
-          <div class="ks" style="margin-top:4px">% เฉลี่ยรวม Kelp</div>
+          <div class="ks" style="margin-top:4px">ถ่วงน้ำหนักตามน้ำหนักเส้นแห้ง</div>
         </div>
       </div>
     </div>
@@ -320,7 +320,7 @@ body.light .hr-sum-total .hr-sum-val{color:var(--teal)}
           </div>
         </div>
         <div class="card">
-          <div class="ch"><div><div class="ct">% Total Yield แยก Grade</div><div class="cs">เฉลี่ยต่อ LOT สัปดาห์นี้</div></div><span class="tag tw">YIELD</span></div>
+          <div class="ch"><div><div class="ct">% Total Yield แยก Grade</div><div class="cs">ถ่วงน้ำหนัก: Σ บรรจุ ÷ Σ เส้นแห้ง</div></div><span class="tag tw">YIELD</span></div>
           <div style="position:relative;height:240px"><canvas id="cYieldGroup"></canvas></div>
         </div>
       </div>
@@ -1031,6 +1031,10 @@ function parseYield(rows){
       date:iso, week:wkey, weekNum:wk, lot:lotNum, grade:g, type:t, subType,
       units:n(10)||0,
       yMk:n(15), yOb:n(21), yTotal:n(32),
+      // น้ำหนักจริง ใช้คำนวณยิลด์แบบถ่วงน้ำหนัก
+      dryIn:n(19),   // T  น้ำหนักเส้นแห้งหลังหักเส้นสด (ตัวหาร)
+      obOut:n(20),   // U  น้ำหนักแจ้งเข้า (หลังอบ)
+      packOut:n(31), // AF น้ำหนักหลังบรรจุ
       wMk:n(36), wOb:n(40), wPk:n(44),
       capMk:n(49), capOb:n(51),
       prodMk:n(53), prodOb:n(55),
@@ -1187,8 +1191,8 @@ function renderWeek(wkey){
   });
 
   // ── KPIs ─────────────────────────────────────────────────────────
-  const avgYObCut=navg(wdata.filter(d=>d.type==='DRY-CUT').map(d=>d.yOb).filter(v=>v&&v<300&&v>0));
-  const avgYObBlock=navg(wdata.filter(d=>d.type==='DRY-Block').map(d=>d.yOb).filter(v=>v&&v<300&&v>0));
+  const avgYObCut=wYield(wdata.filter(d=>d.type==='DRY-CUT'),'obOut');
+  const avgYObBlock=wYield(wdata.filter(d=>d.type==='DRY-Block'),'obOut');
   const wk=WEEKS.find(w=>w.key===wkey);
 
   const cutUnits=byType['DRY-CUT'].reduce((s,d)=>s+d.units,0);
@@ -1198,8 +1202,8 @@ function renderWeek(wkey){
     {l:'ชุดผลิตรวม',v:fmt(totalUnits),s:`DRY-CUT ${fmt(cutUnits)} / Block ${fmt(blkUnits)} / Fresh ${fmt(freshUnits)}`,a:'#1E40AF'},
     {l:'DRY-CUT',v:fmt(cutUnits),s:`${pct(cutUnits,totalUnits)}% ของทั้งหมด`,a:'#1E3A8A'},
     {l:'DRY-Block',v:fmt(blkUnits),s:`${pct(blkUnits,totalUnits)}% ของทั้งหมด`,a:'#B45309'},
-    {l:'Yield อบ CUT',v:avgYObCut?avgYObCut.toFixed(2)+'%':'—',s:'DRY-CUT หลังอบ',a:avgYObCut&&avgYObCut<88?'#991B1B':'#15803D'},
-    {l:'Yield อบ Block',v:avgYObBlock?avgYObBlock.toFixed(2)+'%':'—',s:'DRY-Block หลังอบ',a:avgYObBlock&&avgYObBlock<88?'#991B1B':'#15803D'},
+    {l:'Yield อบ CUT',v:avgYObCut?avgYObCut.toFixed(2)+'%':'—',s:'DRY-CUT หลังอบ · ถ่วงน้ำหนัก',a:avgYObCut&&avgYObCut<88?'#991B1B':'#15803D'},
+    {l:'Yield อบ Block',v:avgYObBlock?avgYObBlock.toFixed(2)+'%':'—',s:'DRY-Block หลังอบ · ถ่วงน้ำหนัก',a:avgYObBlock&&avgYObBlock<88?'#991B1B':'#15803D'},
   ];
   document.getElementById('kpi-row').innerHTML=kd.map(k=>`<div class="kpi" style="--acc:${k.a}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks">${k.s}</div><div class="kg"></div></div>`).join('');
 
@@ -1209,7 +1213,7 @@ function renderWeek(wkey){
 
   // ── Chart 3: Yield %Total only (grouped bar) ─────────────
   const yieldGradesRaw=dryGrades.slice(0,12);
-  const yTotRaw=yieldGradesRaw.map(g=>navg(dryData.filter(d=>d.grade===g&&d.yTotal&&d.yTotal>0).map(d=>d.yTotal)));
+  const yTotRaw=yieldGradesRaw.map(g=>wYield(dryData.filter(d=>d.grade===g),'packOut'));
   const yieldData=yieldGradesRaw.map((g,i)=>({grade:g,value:yTotRaw[i]})).filter(d=>d.value!=null&&d.value>0);
   const yieldGrades=yieldData.map(d=>d.grade);
   const yTotArr=yieldData.map(d=>d.value);
@@ -1259,12 +1263,9 @@ function renderWeek(wkey){
   })();
 
   // ── Total Yield DRY-CUT vs DRY-Block vs Kelp ─────────────
-  const cutData=wdata.filter(d=>d.type==='DRY-CUT'&&d.yTotal&&d.yTotal>0);
-  const blockData=wdata.filter(d=>d.type==='DRY-Block'&&d.yTotal&&d.yTotal>0);
-  const kelpData=wdata.filter(d=>d.grade==='Kelp'&&d.yTotal&&d.yTotal>0);
-  const avgYieldCut=navg(cutData.map(d=>d.yTotal));
-  const avgYieldBlock=navg(blockData.map(d=>d.yTotal));
-  const avgYieldKelp=navg(kelpData.map(d=>d.yTotal));
+  const avgYieldCut=wYield(wdata.filter(d=>d.type==='DRY-CUT'),'packOut');
+  const avgYieldBlock=wYield(wdata.filter(d=>d.type==='DRY-Block'),'packOut');
+  const avgYieldKelp=wYield(wdata.filter(d=>d.grade==='Kelp'),'packOut');
 
   document.getElementById('yieldCutVal').textContent=avgYieldCut?avgYieldCut.toFixed(2)+'%':'—';
   document.getElementById('yieldBlockVal').textContent=avgYieldBlock?avgYieldBlock.toFixed(2)+'%':'—';
@@ -2020,8 +2021,8 @@ function weekHeadline(wkey){
   const ot=OT_DATA.filter(d=>d.week===wkey&&otCounted(d));
   const h=+ot.reduce((s,d)=>s+d.hrs,0).toFixed(1), p=new Set(ot.map(d=>d.emp)).size;
   return { week:wk.label, units:wd.reduce((s,d)=>s+d.units,0),
-    yieldCut:navg2(wd.filter(d=>d.type==='DRY-CUT').map(d=>d.yTotal)),
-    yieldBlock:navg2(wd.filter(d=>d.type==='DRY-Block').map(d=>d.yTotal)),
+    yieldCut:wYield2(wd.filter(d=>d.type==='DRY-CUT'),'packOut'),
+    yieldBlock:wYield2(wd.filter(d=>d.type==='DRY-Block'),'packOut'),
     otHours:h||null, otPeople:p||null, otHoursPerPerson: p? +(h/p).toFixed(2):null };
 }
 
@@ -2033,8 +2034,8 @@ function historyFacts(uptoKey){
   const yq=(w,fn)=>YIELD_DATA.filter(d=>d.week===w.key&&d.type!=='Fresh'&&fn(d));
   const H={ weeks: ws.map(w=>w.label) };
   H.units      = ws.map(w=>YIELD_DATA.filter(d=>d.week===w.key).reduce((s,d)=>s+d.units,0));
-  H.yieldCut   = ws.map(w=>r1(navg2(YIELD_DATA.filter(d=>d.week===w.key&&d.type==='DRY-CUT').map(d=>d.yTotal))));
-  H.yieldBlock = ws.map(w=>r1(navg2(YIELD_DATA.filter(d=>d.week===w.key&&d.type==='DRY-Block').map(d=>d.yTotal))));
+  H.yieldCut   = ws.map(w=>r1(wYield(YIELD_DATA.filter(d=>d.week===w.key&&d.type==='DRY-CUT'),'packOut')));
+  H.yieldBlock = ws.map(w=>r1(wYield(YIELD_DATA.filter(d=>d.week===w.key&&d.type==='DRY-Block'),'packOut')));
   const grades=[...new Set(YIELD_DATA.filter(d=>d.type!=='Fresh').map(d=>d.grade))].sort();
   const series=(pick,filterGrades)=>{
     const o={};
@@ -2044,7 +2045,10 @@ function historyFacts(uptoKey){
     });
     return Object.keys(o).length? o : undefined;
   };
-  H.yieldByGrade   = series(d=>d.yTotal);
+  H.yieldByGrade = (()=>{ const o={};
+    grades.forEach(g=>{ const arr=ws.map(w=>r1(wYield(yq(w,d=>d.grade===g),'packOut')));
+      if(arr.filter(v=>v!=null).length>=2) o[g]=arr; });
+    return Object.keys(o).length? o : undefined; })();
   H.ovenCapByGrade = series(d=>d.capOb,  Object.keys(TARGET_CAP_OB));
   H.ovenProdByGrade= series(d=>d.prodOb, Object.keys(TARGET_PROD_OB));
   const ot=OT_DATA.filter(otCounted);
@@ -2072,14 +2076,14 @@ function weekFacts(wkey){
     units:{ total: wd.reduce((s,d)=>s+d.units,0), dryCut: byType('DRY-CUT').reduce((s,d)=>s+d.units,0),
             dryBlock: byType('DRY-Block').reduce((s,d)=>s+d.units,0), fresh: byType('Fresh').reduce((s,d)=>s+d.units,0),
             lots: wd.length },
-    yieldByType:{ dryCut: navg2(byType('DRY-CUT').map(d=>d.yTotal)),
-                  dryBlock: navg2(byType('DRY-Block').map(d=>d.yTotal)),
-                  kelp: navg2(wd.filter(d=>d.grade==='Kelp').map(d=>d.yTotal)) },
+    yieldByType:{ dryCut: wYield2(byType('DRY-CUT'),'packOut'),
+                  dryBlock: wYield2(byType('DRY-Block'),'packOut'),
+                  kelp: wYield2(wd.filter(d=>d.grade==='Kelp'),'packOut') },
     yieldByGrade:{}, ovenProd:{}, ovenCap:{}
   };
   [...new Set(dry.map(d=>d.grade))].sort().forEach(g=>{
     const rows=dry.filter(d=>d.grade===g);
-    const y=navg2(rows.map(d=>d.yTotal)); if(y!=null) f.yieldByGrade[g]=y;
+    const y=wYield2(rows,'packOut'); if(y!=null) f.yieldByGrade[g]=y;
     const p=navg2(rows.map(d=>d.prodOb));
     if(p!=null){ const t=TARGET_PROD_OB[g];
       f.ovenProd[g] = t!=null ? {v:p, target:t, diff:+(p-t).toFixed(2)} : {v:p}; }
@@ -2332,6 +2336,16 @@ function mkDnt(id,vals,total,vid,lid,labels,colors){
   document.getElementById(vid).textContent=fmt(total);
   document.getElementById(lid).innerHTML=labels.map((l,i)=>`<div class="li"><span class="ld" style="background:${colors[i]}"></span>${l} ${pct(vals[i],total)}% (${fmt(vals[i])} ชุด)</div>`).join('');
 }
+// ยิลด์ถ่วงน้ำหนัก = Σ น้ำหนักขาออก ÷ Σ น้ำหนักเส้นแห้ง × 100
+//   outKey 'obOut' = ยิลด์อบ, 'packOut' = Total Yield (หลังบรรจุ)
+// นับเฉพาะล็อตที่มีน้ำหนักขาออกแล้ว — ยังไม่อบ/ยังไม่บรรจุ = ยังไม่รู้ยิลด์ ไม่ใช่ 0%
+// ยิลด์เกิน 100% ยังนับตามปกติ (Aging ทำให้เส้นดูดความชื้นกลับได้จริง)
+function wYield(rows, outKey){
+  let a=0, b=0;
+  rows.forEach(d=>{ const i=d.dryIn, o=d[outKey]; if(i>0 && o>0){ a+=i; b+=o; } });
+  return a>0 ? b/a*100 : null;
+}
+function wYield2(rows, outKey){ const v=wYield(rows,outKey); return v==null?null:+v.toFixed(2); }
 function navg(a){const v=a.filter(x=>x!=null&&!isNaN(x)&&x>0);return v.length?v.reduce((a,b)=>a+b)/v.length:null;}
 function sum(a,k){return a.reduce((s,d)=>s+(+d[k]||0),0);}
 function fmt(n){return n!=null?Number(Math.round(n)).toLocaleString():'—';}
