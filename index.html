@@ -101,6 +101,23 @@ body.light .tgl{color:#475569;border-color:#CBD5E1}
 body.light .tgl:hover{border-color:var(--teal);color:var(--teal)}
 body.light .tgl.on{background:var(--teal);color:#fff;border-color:var(--teal)}
 .grp{text-align:left;margin-top:18px}
+.wbadge{display:inline-block;margin-left:5px;min-width:16px;padding:0 5px;border-radius:9px;background:#DC2626;color:#fff;font-size:9.5px;font-weight:700;line-height:15px;vertical-align:1px}
+.week-btn.active .wbadge{background:#fff;color:#DC2626}
+.wn-sum{font-size:11px;font-weight:700;color:#DC2626;flex-shrink:0;white-space:nowrap}
+details.warn{background:#FEF2F2;border:1px solid #FECACA;border-left:4px solid #DC2626;border-radius:6px;padding:12px 16px;color:#7F1D1D;font-size:12.5px}
+details.warn.info{background:var(--bg2);border-color:var(--border);border-left-color:#94A3B8;color:var(--text)}
+details.warn summary{cursor:pointer;font-size:13px}
+.warn-kg{font-weight:500;opacity:.85}
+.warn-grp{margin-top:10px}
+.warn-grp.muted{opacity:.75}
+.warn-t{font-weight:700}
+.warn-t span{font-weight:500;opacity:.8}
+.warn-d{font-size:11.5px;opacity:.85;margin-top:1px}
+.warn-grp ul{margin:4px 0 0 18px;line-height:1.7}
+.warn-m{opacity:.8;font-size:11.5px}
+.warn-fix{margin-top:10px;padding-top:8px;border-top:1px dashed #FCA5A5;font-size:11.5px}
+body:not(.light) details.warn{background:rgba(220,38,38,.12);border-color:rgba(220,38,38,.35);color:#FECACA}
+body:not(.light) details.warn.info{background:var(--bg2);color:var(--text)}
 .grp-h{font-size:12px;font-weight:700;color:var(--text);letter-spacing:.03em;margin-bottom:2px}
 .grp-s{font-size:11px;color:var(--muted);margin-bottom:8px}
 body.light .slot{background:#F8FAFC;border-color:rgba(30,58,138,.28)}
@@ -248,22 +265,20 @@ body.light .hr-sum-total .hr-sum-val{color:var(--teal)}
     </div>
     <div style="display:flex;gap:8px">
       <button class="rbtn" id="theme-btn" onclick="toggleTheme()">Dark mode</button>
-      <button class="rbtn" id="aiCopyBtn" onclick="aiCopyPrompt()">✨ ให้ AI สรุป (ใช้ subscription)</button>
-      <button class="rbtn" id="aiBtn" onclick="aiSummarize()">⚡ สรุปอัตโนมัติ (ต้องมี API key)</button>
       <button class="rbtn" onclick="showUpload()">📂 จัดการไฟล์</button>
     </div>
   </div>
 
   <!-- Week selector -->
   <div class="week-nav">
-    <span class="week-nav-label">เลือกสัปดาห์</span>
+    <span class="week-nav-label">เลือกสัปดาห์</span><span id="wn-sum" class="wn-sum"></span>
     <div id="week-btns" style="display:flex;gap:6px;flex-wrap:nowrap"></div>
   </div>
 
   <div class="main">
-    <div id="ai-panel" style="display:none"></div>
 
     <!-- KPIs -->
+    <div id="warn-box"></div>
     <div class="kpis" id="kpi-row"></div>
 
 
@@ -439,7 +454,7 @@ const GRADE_COLORS={
   'AB World':'#EC4899',
   'CIS 25g':'#D97706','CIS 32.5g':'#EA580C','CIS 33g':'#FB923C','CIS 35g':'#F59E0B',
   'CIS':'#D97706',
-  'CMA 30g':'#F97316','CMA 26g':'#9A3412','CMA':'#F97316',
+  'CMA 30g':'#F97316','CMA 26g':'#9A3412','CMA 40g':'#C2410C','CMA':'#F97316','SWP50g':'#B91C1C',
   'A 40g':'#047857','A-ayam':'#A16207','C-Santa':'#1D4ED8',
   'DK Portion':'#BE185D',
   'DD Balance':'#EF4444','DD Blue':'#0EA5E9','DD Dry Korean':'#16A34A',
@@ -856,6 +871,8 @@ function excelDateToYMD(serial){
 const SUBTYPE_BY_NAME = {
   'a-mars':  'ยาว',   // A-MARS / A-Mars = เส้น A ยาว
   'a-ไทยรี': 'ยาว',   // A-ไทยรี        = เส้น A ยาว
+  'morii':    'ยาว',  // Morii          = เส้น A ยาว
+  'morii2cm': 'ยาว',  // Morii 2CM      = เส้น A ยาว
 };
 
 // ───────────────────────────────────────────────────────────────
@@ -913,6 +930,7 @@ function normalizeGrade(raw){
   // รองรับทั้ง "CMA (NEW)26G", "CMA (NEW)30G" และ "CMA (NEW)" เปล่าๆ (ของเดิม = 30g)
   if(n.includes('cma')){
     if(n.includes('26')) return 'CMA 26g';
+    if(n.includes('40')) return 'CMA 40g';   // CMA (NEW)40G = เกรดใหม่ แยกจาก 30g
     return 'CMA 30g';
   }
 
@@ -931,7 +949,7 @@ function normalizeGrade(raw){
   if(n.includes('sweetpo') || n.includes('มันเทศ')) return 'sweet potato';
 
   // ── Morii
-  if(n==='morii') return 'Morii';
+  if(n.startsWith('morii')) return 'A';   // Morii / Morii 2CM = เกรด A (ลูกค้า Morii Food) — ฝั่งบรรจุก็ลงเป็น A
 
   return s;
 }
@@ -983,13 +1001,15 @@ function displayGrade(grade, size){
   // ── CMA (มาม่า) — แยกตามขนาด 26g / 30g
   if(g.includes('CMA')){
     if(s.startsWith('26g')) return 'CMA 26g';
+    if(s.startsWith('40g')) return 'CMA 40g';
     return 'CMA 30g';
   }
 
   // ── DD Balance / Blue / Dry Korean
   if(g==='DDBALANCE') return 'DD Balance';
   if(g==='DDBLUE') return 'DD Blue';
-  if(g==='DDDRYKOREAN' || g.includes('DRYKOREAN')) return 'DD Dry Korean';
+  if(g==='DDDRYKOREAN' || g.includes('DRYKOR')) return 'DD Dry Korean';   // รวมพิมพ์ผิด "DD Dry koren"
+  if(g.includes('DDBALAN')) return 'DD Balance';                           // รวมพิมพ์ผิด "A DD Balanec"
 
   // ── Kelp
   if(g==='KELP') return 'Kelp';
@@ -999,6 +1019,20 @@ function displayGrade(grade, size){
 
   // ── อื่นๆ คงเดิม (preserve case ดั้งเดิม)
   return String(grade||'').trim();
+}
+
+// ── เกรดของแถวบรรจุ เทียบกับเกรดที่ LOT นั้นมีใน Data-Yield (allowed = Set)
+//    บางทีช่อง Grade ลงเป็นเกรดเส้น แต่ชื่อสินค้าจริงอยู่ใน Column1 เช่น Grade "C" 22g + Column1 "DK Portion"
+//    → ถ้าช่อง Grade ไม่ตรงกับ LOT ให้ลองอ่านชื่อจาก Column1 ก่อนตัดสินว่าจับคู่ไม่ได้
+function resolvePackGrade(p, allowed){
+  const dg=displayGrade(p.gradeRaw, p.size);
+  if(!allowed || allowed.has(dg)) return dg;
+  const sub=p.subGrade||'';
+  if(sub){
+    const c1=displayGrade(sub, p.size); if(allowed.has(c1)) return c1;
+    const c2=normalizeGrade(sub);       if(allowed.has(c2)) return c2;
+  }
+  return dg;
 }
 
 function parseYield(rows){
@@ -1028,7 +1062,7 @@ function parseYield(rows){
     }
     const n=ci=>{ const v=r[ci]; return (v!==null&&v!==undefined&&String(v).indexOf('#')<0)?+v||null:null; };
     out.push({
-      date:iso, week:wkey, weekNum:wk, lot:lotNum, grade:g, type:t, subType,
+      date:iso, week:wkey, weekNum:wk, lot:lotNum, grade:g, rawGrade, type:t, subType,
       units:n(10)||0,
       yMk:n(15), yOb:n(21), yTotal:n(32),
       // น้ำหนักจริง ใช้คำนวณยิลด์แบบถ่วงน้ำหนัก
@@ -1067,6 +1101,7 @@ function parseProd(rows){
     out.push({
       date:iso, week:wkey, lot:lotNum,
       gradeRaw:String(r[5]||'').trim(),
+      subGrade:String(r[7]||'').trim(),   // Customer
       size:size,
       kg:+r[8]||0, man, hr, manHr, kgManHr:kgmh,
       workHr: manHr, lightHr: 0, otherHr: 0, // เผื่อใช้ร่วมกับ logic ของ sheet ใหม่
@@ -1121,6 +1156,113 @@ function isoWeek(d){
   return [d.getFullYear(), weekNum];
 }
 
+// ── ขนาดบรรจุ ────────────────────────────────────────────────
+// ขนาดบรรจุปลีก เรียงจากเล็กไปใหญ่ ตามด้วยบรรจุพิเศษ/ขายส่งท้ายสุด (ลำดับนี้ = ลำดับคอลัมน์ในตาราง)
+const SIZE_GROUPS = ['22g','25g','26g','30g','32.5g','33g','35g','40g','50g','80g','100g','160g','200g','250g','280g','300g','400g','500g','1kg','10kg','10kgVan',
+                     '60g*50','300g*30','2cm 5kg*4','12cm 20kg','18cm 20kg'];
+
+function sizeGroup(raw){
+  const s = String(raw).trim().toLowerCase().replace(/\s/g,'');
+  if(!s) return null;
+  if(s.includes('10kg') && s.includes('van')) return '10kgVan';
+  // ── บรรจุพิเศษ/ขายส่ง — ในไฟล์สะกดหลายแบบ ต้องดักก่อน loop ข้างล่าง
+  if(s.startsWith('2cm'))   return '2cm 5kg*4';   // "2cm 5kg*4" / "2cm(5kg*4)"
+  if(s.includes('12cm'))    return '12cm 20kg';   // "12cm(1*20kg)" / "20kg(12cm)"
+  if(s.includes('18cm'))    return '18cm 20kg';   // "18cm(20kg)" / "20kg(18cm)"
+  if(/^300g?\*30/.test(s))  return '300g*30';     // "300*30" / "300g*30"
+  if(/^60g?\*50/.test(s))   return '60g*50';      // "60*50" / "60g*50"
+  for(const grp of SIZE_GROUPS){
+    if(s.startsWith(grp.toLowerCase())) return grp;
+  }
+  // พิมพ์แค่ตัวเลขไม่มีหน่วย เช่น "40" → ถือเป็นกรัม
+  if(String(parseFloat(s))===s && SIZE_GROUPS.indexOf(s+'g')>=0) return s+'g';
+  return null;
+}
+
+
+// ── ตรวจข้อมูลที่ระบบไม่ได้นับ (พนักงานพิมพ์ผิด / เกรดหรือขนาดใหม่) ──────────
+// เกรดที่ระบบรู้จัก = เกรดที่มีสีใน GRADE_COLORS
+//   เพิ่มเกรดใหม่ → ใส่กฎใน normalizeGrade/displayGrade (ถ้าต้องแปลงชื่อ) + ใส่สีใน GRADE_COLORS แล้วระบบจะเลิกเตือน
+const KNOWN_TYPES=['DRY-CUT','DRY-Block','Fresh'];
+const ISSUE_INFO={
+  grade:   {t:'เกรดที่ระบบไม่รู้จัก', d:'แสดงเป็นเกรดแยก ไม่ถูกรวมกับเกรดที่ควรเป็น — อาจพิมพ์ผิด หรือเป็นเกรดใหม่ที่ยังไม่ได้เพิ่มเข้าระบบ', warn:true},
+  type:    {t:'ประเภทที่ระบบไม่รู้จัก', d:'ไม่ถูกนับในการ์ด DRY-CUT / DRY-Block — ต้องเป็น DRY-CUT, DRY-Block หรือ Fresh เท่านั้น', warn:true},
+  size:    {t:'ขนาดบรรจุที่ระบบไม่รู้จัก', d:'ไม่ถูกนับในตารางและกราฟน้ำหนักบรรจุ', warn:true},
+  match:   {t:'บรรจุที่จับคู่เกรดกับ Data-Yield ไม่ได้', d:'เกรดในชีท Productivity ไม่ตรงกับเกรดของ LOT นั้นในชีท Data-Yield จึงไม่ถูกนับในตารางบรรจุ', warn:true},
+  boundary:{t:'บรรจุบันทึกคนละชีท', d:'LOT ผลิตสัปดาห์นี้ แต่บันทึกบรรจุไว้ในชีท Productivity อีกชีท จึงไม่ถูกนับ', warn:true},
+  nolot:   {t:'บรรจุที่ไม่มี LOT ใน Data-Yield', d:'อาจเป็นล็อตของปีก่อน หรือพิมพ์เลข LOT ผิด', warn:false}
+};
+let WEEK_ISSUES={};
+function sheetTagOf(w){ return (w.num>=NEW_SHEET_FROM_WEEK && PROD_NEW_DATA.length>0) ? 'N' : 'O'; }
+function computeIssues(){
+  const out={};
+  const bucket=(wk,kind,key,label)=>{ const w=out[wk]||(out[wk]={}); const k=w[kind]||(w[kind]={});
+    return k[key]||(k[key]={label:label, n:0, kg:0, units:0, lots:new Set()}); };
+  // 1) Data-Yield: เกรด / ประเภท ที่ไม่รู้จัก
+  YIELD_DATA.forEach(d=>{
+    if(!GRADE_COLORS[d.grade]){ const b=bucket(d.week,'grade',d.grade,'"'+(d.rawGrade||d.grade)+'"'); b.n++; b.units+=d.units||0; if(d.lot) b.lots.add(d.lot); }
+    if(KNOWN_TYPES.indexOf(d.type)<0){ const b=bucket(d.week,'type',d.type+'|'+d.grade,'"'+(d.type||'ว่าง')+'" (เกรด '+d.grade+')'); b.n++; b.units+=d.units||0; if(d.lot) b.lots.add(d.lot); }
+  });
+  // 2) ฝั่งบรรจุ — จับคู่แบบเดียวกับ renderWeek: LOT ต้องอยู่ในสัปดาห์นั้น และเกรดต้องตรงกับ Yield
+  const lotG={};  // สัปดาห์ → LOT → Set(เกรด)
+  YIELD_DATA.forEach(d=>{ if(!d.lot) return; const w=lotG[d.week]||(lotG[d.week]={}); (w[d.lot]=w[d.lot]||new Set()).add(d.grade); });
+  const wkNum=k=>parseInt(String(k).split('-W')[1],10);
+  [[PROD_NEW_DATA,'N'],[PROD_DATA,'O']].forEach(([src,tag])=>{
+    src.forEach(p=>{
+      const pn=wkNum(p.week), sg=sizeGroup(p.size);
+      const okIn=w=>{ const s=lotG[w.key]&&lotG[w.key][p.lot]; return !!s && s.has(resolvePackGrade(p,s)); };
+      // นับได้ถ้ามีสัปดาห์ไหนก็ได้ (ชีทเดียวกัน) ที่มี LOT นี้และเกรดตรง — เหมือน renderWeek ที่จับคู่ด้วย LOT ไม่สนวันที่ (ของบ่มบรรจุทีหลังได้)
+      if(sg && WEEKS.some(w=>sheetTagOf(w)===tag && okIn(w))) return;
+      const near=WEEKS.filter(w=>lotG[w.key]&&lotG[w.key][p.lot]&&Math.abs(w.num-pn)<=3);
+      const same=near.filter(w=>sheetTagOf(w)===tag);
+      // ใช้หน้าต่าง ±3 สัปดาห์เฉพาะตอนเลือกว่าจะเตือนที่สัปดาห์ไหน (กัน LOT เลขซ้ำของ Kelp กับเส้นแห้ง)
+      if(!same.length){
+        // LOT+เกรดตรงกับสัปดาห์ที่ใช้อีกชีท (กว้างกว่า ±3 — เช่นเก็บ aging ไว้แพ็คทีหลังหลายสัปดาห์ แต่ไม่เกิน 16 สัปดาห์)
+        const other=sg ? WEEKS.filter(w=>sheetTagOf(w)!==tag && Math.abs(w.num-pn)<=16 && okIn(w))
+                              .sort((a,b)=>Math.abs(a.num-pn)-Math.abs(b.num-pn)) : [];
+        if(other.length){
+          const w0=other[0]; const b=bucket(w0.key,'boundary',p.lot+'|'+p.gradeRaw+'|'+sg,'"'+p.gradeRaw+'" '+sg); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot); return;
+        }
+        const pw=WEEKS.find(w=>w.key===p.week);
+        if(pw && sheetTagOf(pw)===tag){ const b=bucket(p.week,'nolot',p.gradeRaw+'|'+(sg||p.size),'"'+p.gradeRaw+'" '+(sg||p.size)); b.n++; b.kg+=p.kg||0; if(p.lot) b.lots.add(p.lot); }
+        return;
+      }
+      const w0=same.slice().sort((a,b)=>Math.abs(a.num-pn)-Math.abs(b.num-pn))[0];
+      if(!sg){ const b=bucket(w0.key,'size',p.size+'|'+p.gradeRaw,'"'+p.size+'" (เกรด '+p.gradeRaw+')'); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot); return; }
+      const have=[...lotG[w0.key][p.lot]].join(' / ');
+      const b=bucket(w0.key,'match',p.lot+'|'+p.gradeRaw+'|'+sg,'"'+p.gradeRaw+'" '+sg+' — Yield LOT นี้มี '+have); b.n++; b.kg+=p.kg||0; b.lots.add(p.lot);
+    });
+  });
+  return out;
+}
+function issueCount(wk){ const w=WEEK_ISSUES[wk]; if(!w) return 0;
+  return Object.keys(w).filter(k=>ISSUE_INFO[k].warn).reduce((s,k)=>s+Object.keys(w[k]).length,0); }
+function renderIssues(wk){
+  const box=document.getElementById('warn-box'); if(!box) return;
+  const w=WEEK_ISSUES[wk];
+  if(!w || !Object.keys(w).length){ box.innerHTML=''; return; }
+  const cnt=issueCount(wk);
+  const order=['grade','type','size','match','boundary','nolot'];
+  let kgTot=0; order.forEach(k=>{ if(w[k]&&ISSUE_INFO[k].warn) Object.values(w[k]).forEach(e=>kgTot+=e.kg); });
+  let h='<details class="warn '+(cnt?'':'info')+'" open><summary><b>'+(cnt?'⚠ สัปดาห์นี้มีข้อมูลที่ระบบไม่ได้นับ '+cnt+' รายการ':'ℹ มีข้อมูลบรรจุที่ไม่มี LOT ใน Data-Yield')+'</b>'
+       +(kgTot?' <span class="warn-kg">(น้ำหนักบรรจุที่ไม่ถูกนับ '+fmt(kgTot)+' kg)</span>':'')+'</summary>';
+  order.forEach(k=>{
+    if(!w[k]) return;
+    const items=Object.values(w[k]).sort((a,b)=>(b.kg-a.kg)||(b.units-a.units));
+    h+='<div class="warn-grp'+(ISSUE_INFO[k].warn?'':' muted')+'"><div class="warn-t">'+ISSUE_INFO[k].t+' <span>· '+items.length+' รายการ</span></div>'
+      +'<div class="warn-d">'+ISSUE_INFO[k].d+'</div><ul>';
+    items.slice(0,8).forEach(e=>{
+      const lots=[...e.lots].slice(0,4).join(', ')+(e.lots.size>4?' …':'');
+      const amt=e.kg? fmt(e.kg)+' kg' : (e.units? e.units+' ชุด' : e.n+' แถว');
+      h+='<li>'+e.label+'<span class="warn-m"> · LOT '+(lots||'-')+' · '+amt+'</span></li>';
+    });
+    if(items.length>8) h+='<li class="warn-m">… และอีก '+(items.length-8)+' รายการ</li>';
+    h+='</ul></div>';
+  });
+  h+='<div class="warn-fix">วิธีแก้: ถ้าพิมพ์ผิด → แก้ในไฟล์ Excel แล้วโหลดไฟล์ใหม่ · ถ้าเป็นเกรดหรือขนาดใหม่ → แจ้งผู้ดูแลให้เพิ่มเข้าระบบ</div></details>';
+  box.innerHTML=h;
+}
+
 function buildWeeks(){
   const wmap={};
   YIELD_DATA.forEach(d=>{
@@ -1142,8 +1284,12 @@ function buildWeeks(){
     w.label = `W${w.num}`;
     w.range = `${fmtRange(wStart)} – ${fmtRange(wEnd)}`;
   });
+  WEEK_ISSUES=computeIssues();
   const nav=document.getElementById('week-btns');
-  nav.innerHTML=WEEKS.map(w=>`<button class="week-btn" id="wb-${w.key}" onclick="selectWeek('${w.key}')">${w.label}<br><span style="font-size:9px;font-weight:400;opacity:.7">${w.range}</span></button>`).join('');
+  const nBad=WEEKS.filter(w=>issueCount(w.key)>0).length;
+  const sumEl=document.getElementById('wn-sum');
+  if(sumEl) sumEl.textContent = nBad ? '⚠ '+nBad+' สัปดาห์มีข้อมูลที่ไม่ได้นับ' : '';
+  nav.innerHTML=WEEKS.map(w=>`<button class="week-btn" id="wb-${w.key}" onclick="selectWeek('${w.key}')" title="${issueCount(w.key)?'มีข้อมูลที่ระบบไม่ได้นับ '+issueCount(w.key)+' รายการ':''}">${w.label}${issueCount(w.key)?'<span class="wbadge">'+issueCount(w.key)+'</span>':''}<br><span style="font-size:9px;font-weight:400;opacity:.7">${w.range}</span></button>`).join('');
 }
 
 function fmtD(s){ const d=new Date(s); return `${d.getDate()}/${d.getMonth()+1}`; }
@@ -1159,6 +1305,7 @@ function selectWeek(key){
 }
 
 function renderWeek(wkey){
+  renderIssues(wkey);
   const wdata=YIELD_DATA.filter(d=>d.week===wkey);
   const dryData=wdata.filter(d=>d.type!=='Fresh');
   const wkObj=WEEKS.find(w=>w.key===wkey);
@@ -1212,7 +1359,7 @@ function renderWeek(wkey){
   mkDnt('cDonut',uGrades.map(g=>gradeUnits[g].total),totalUnits,'dv','dleg',uGrades,uGrades.map(g=>gradeColor(g)));
 
   // ── Chart 3: Yield %Total only (grouped bar) ─────────────
-  const yieldGradesRaw=dryGrades.slice(0,12);
+  const yieldGradesRaw=dryGrades;
   const yTotRaw=yieldGradesRaw.map(g=>wYield(dryData.filter(d=>d.grade===g),'packOut'));
   const yieldData=yieldGradesRaw.map((g,i)=>({grade:g,value:yTotRaw[i]})).filter(d=>d.value!=null&&d.value>0);
   const yieldGrades=yieldData.map(d=>d.grade);
@@ -1272,7 +1419,11 @@ function renderWeek(wkey){
   document.getElementById('yieldKelpVal').textContent=avgYieldKelp?avgYieldKelp.toFixed(2)+'%':'—';
 
   // ── pGrades: รายชื่อ Grade ที่จะใช้ใน Productivity อบ + Capacity อบ ──
-  const pGrades=dryGrades.slice(0,10);
+  const pGrades=dryGrades;
+  // ความสูงกราฟแนวนอนยืดตามจำนวนเกรด
+  const pH=Math.max(220, pGrades.length*24+50)+'px';
+  document.getElementById('cProdOb').parentElement.style.height=pH;
+  document.getElementById('cCap').parentElement.style.height=pH;
   setTarget('cProdOb', TARGET_PROD_OB, pGrades, 'tgtProdCap');
   setTarget('cCap',    TARGET_CAP_OB,  pGrades, 'tgtCapCap');
 
@@ -1369,30 +1520,12 @@ function renderWeek(wkey){
 
 
   // ── Chart 8 + Table: น้ำหนักบรรจุ (kg) แยก Grade × Size ────────────
-  // ขนาดบรรจุปลีก เรียงจากเล็กไปใหญ่ ตามด้วยบรรจุพิเศษ/ขายส่งท้ายสุด (ลำดับนี้ = ลำดับคอลัมน์ในตาราง)
-  const SIZE_GROUPS = ['22g','25g','26g','30g','32.5g','33g','35g','40g','50g','80g','100g','160g','200g','250g','280g','300g','400g','500g','1kg','10kg','10kgVan',
-                       '60g*50','300g*30','2cm 5kg*4','12cm 20kg','18cm 20kg'];
   const SIZE_COLORS = {
     '22g':'#6366F1','25g':'#8B5CF6','26g':'#7E22CE','30g':'#A855F7','32.5g':'#C026D3','33g':'#DB2777','35g':'#D946EF','40g':'#0D9488','50g':'#14B8A6','80g':'#F97316','100g':'#7C3AED',
     '160g':'#CA8A04','200g':'#0369A1','250g':'#0284C7','280g':'#0891B2','300g':'#2563EB','400g':'#4F46E5','500g':'#BE185D','1kg':'#D97706','10kg':'#16A34A','10kgVan':'#EC4899',
     '60g*50':'#65A30D','300g*30':'#059669','2cm 5kg*4':'#B45309','12cm 20kg':'#9333EA','18cm 20kg':'#DC2626'
   };
 
-  function sizeGroup(raw){
-    const s = String(raw).trim().toLowerCase().replace(/\s/g,'');
-    if(!s) return null;
-    if(s.includes('10kg') && s.includes('van')) return '10kgVan';
-    // ── บรรจุพิเศษ/ขายส่ง — ในไฟล์สะกดหลายแบบ ต้องดักก่อน loop ข้างล่าง
-    if(s.startsWith('2cm'))   return '2cm 5kg*4';   // "2cm 5kg*4" / "2cm(5kg*4)"
-    if(s.startsWith('12cm'))  return '12cm 20kg';   // "12cm(1*20kg)"
-    if(s.startsWith('18cm'))  return '18cm 20kg';   // "18cm(20kg)"
-    if(/^300g?\*30/.test(s))  return '300g*30';     // "300*30" / "300g*30"
-    if(/^60g?\*50/.test(s))   return '60g*50';      // "60*50" / "60g*50"
-    for(const grp of SIZE_GROUPS){
-      if(s.startsWith(grp.toLowerCase())) return grp;
-    }
-    return null;
-  }
 
   // ── สร้าง mapping LOT → Set of allowed display names จาก Yield ──
   const lotAllowedGrades = {};
@@ -1404,24 +1537,26 @@ function renderWeek(wkey){
 
   const weekLots = new Set(wdata.map(d=>d.lot).filter(Boolean));
   // ── กรอง Productivity: LOT ตรง + display name ตรงกับ Yield's grade ──
-  const wProdByLot = PROD_SRC.filter(d=>{
-    if(!weekLots.has(d.lot)) return false;
+  //    dg = เกรดที่ใช้แสดง (อ่านจาก Column1 ได้ถ้าช่อง Grade ไม่ตรง — ดู resolvePackGrade)
+  const wProdByLot = [];
+  PROD_SRC.forEach(d=>{
+    if(!weekLots.has(d.lot)) return;
     const allowed = lotAllowedGrades[d.lot];
-    if(!allowed) return false;
-    const dispG = displayGrade(d.gradeRaw, d.size);
-    return allowed.has(dispG);
+    if(!allowed) return;
+    const dg = resolvePackGrade(d, allowed);
+    if(allowed.has(dg)) wProdByLot.push(Object.assign({}, d, {dg}));
   });
 
   // ── Table label: รวม CIS 25g + CIS 32.5g + CIS 35g เป็น "CIS" (ขนาดอยู่ในหัวคอลัมน์แล้ว) ──
   const tableLabel = name => (name==='CIS 25g'||name==='CIS 32.5g'||name==='CIS 33g'||name==='CIS 35g') ? 'CIS'
-                           : (name==='CMA 26g'||name==='CMA 30g') ? 'CMA' : name;
+                           : (name==='CMA 26g'||name==='CMA 30g'||name==='CMA 40g') ? 'CMA' : name;
 
   // Aggregate: display grade × sizeGroup → total kg
   const gradeMap={};
   wProdByLot.forEach(d=>{
     const sg = sizeGroup(d.size);
     if(!sg || !d.kg) return;
-    const g = tableLabel(displayGrade(d.gradeRaw, d.size));
+    const g = tableLabel(d.dg || displayGrade(d.gradeRaw, d.size));
     if(!gradeMap[g]) gradeMap[g]={};
     if(!gradeMap[g][sg]) gradeMap[g][sg]=0;
     gradeMap[g][sg] += d.kg;
@@ -1512,7 +1647,7 @@ function renderWeek(wkey){
   wProdByLot.forEach(d=>{
     const sg = sizeGroup(d.size);
     if(!sg) return;
-    const g = tableLabel(displayGrade(d.gradeRaw, d.size));
+    const g = tableLabel(d.dg || displayGrade(d.gradeRaw, d.size));
     const mh = d.manHr;
     if(!mh || mh<=0) return;
     if(!prodMap[g]) prodMap[g]={};
@@ -1668,7 +1803,7 @@ function renderHoursBreakdown(rows, allSizes, allGrades, sizeGroup){
     '60g*50':'#65A30D','300g*30':'#059669','2cm 5kg*4':'#B45309','12cm 20kg':'#9333EA','18cm 20kg':'#DC2626'
   };
   const tableLabel = name => (name==='CIS 25g'||name==='CIS 32.5g'||name==='CIS 33g'||name==='CIS 35g') ? 'CIS'
-                           : (name==='CMA 26g'||name==='CMA 30g') ? 'CMA' : name;
+                           : (name==='CMA 26g'||name==='CMA 30g'||name==='CMA 40g') ? 'CMA' : name;
 
   // Aggregate hours by Grade × Size
   const hMap = {};
@@ -1676,7 +1811,7 @@ function renderHoursBreakdown(rows, allSizes, allGrades, sizeGroup){
   rows.forEach(d=>{
     const sg = sizeGroup(d.size);
     if(!sg) return;
-    const g = tableLabel(displayGrade(d.gradeRaw, d.size));
+    const g = tableLabel(d.dg || displayGrade(d.gradeRaw, d.size));
     const w = d.workHr||0, l = d.lightHr||0, o = d.otherHr||0;
     if(w+l+o<=0) return;
     if(!hMap[g]) hMap[g]={};
@@ -1783,6 +1918,8 @@ function renderHoursBreakdown(rows, allSizes, allGrades, sizeGroup){
 }
 
 // ── จำนวนพนักงานรายสัปดาห์ — เก็บในเบราว์เซอร์ แยกตามสัปดาห์+แผนก ──
+// ลบ API key ที่ฟีเจอร์ AI (ถอดออกแล้ว) เคยเก็บไว้ในเบราว์เซอร์
+try{ ['wr_anthropic_key_v1','wr_gemini_key_v1','wr_ai_provider','wr_gemini_model'].forEach(k=>localStorage.removeItem(k)); }catch(e){}
 const HC_KEY='wr_headcount_v1';
 let HEADCOUNT={};
 try{ HEADCOUNT=JSON.parse(localStorage.getItem(HC_KEY)||'{}')||{}; }catch(e){ HEADCOUNT={}; }
@@ -1960,371 +2097,6 @@ function renderOT(wkey){
   if(files.length) parts.push('ไฟล์ OT: ' + files.map(x=>x.name + (x.dup? ' (ข้ามแถวซ้ำ '+x.dup+')':'')).join(' · '));
   note.innerHTML=parts.join('<br>');
 }
-// ── สรุปด้วย AI (เรียก Claude API ตรงจากเบราว์เซอร์) ──────────────
-// API key ไม่ได้ฝังในโค้ด — ผู้ใช้กรอกเอง เก็บไว้ใน localStorage ของเครื่องตัวเอง
-// รองรับ 2 เจ้า: Anthropic (Claude) และ Google (Gemini) — key เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น
-const AI_STORE={ claude:'wr_anthropic_key_v1', gemini:'wr_gemini_key_v1' };
-const AI_PROV_STORE='wr_ai_provider', GEM_MODEL_STORE='wr_gemini_model';
-const AI_MODEL='claude-opus-5';
-let AI_BUSY=false, AI_LAST='';
-
-function lsGet(k){ try{ return localStorage.getItem(k)||''; }catch(e){ return ''; } }
-function lsSet(k,v){ try{ if(v) localStorage.setItem(k,v); else localStorage.removeItem(k); }catch(e){} }
-function aiProvider(){ const p=lsGet(AI_PROV_STORE); return (p==='gemini'||p==='claude')?p:'claude'; }
-function aiGetKey(p){ return lsGet(AI_STORE[p||aiProvider()]); }
-function aiSetKey(k,p){ lsSet(AI_STORE[p||aiProvider()], k); }
-function aiProvName(p){ return (p||aiProvider())==='gemini' ? 'Gemini (Google)' : 'Claude (Anthropic)'; }
-
-function aiAskKey(){
-  const LF=String.fromCharCode(10);
-  const cur=aiProvider();
-  const ans=prompt('เลือกผู้ให้บริการ AI' + LF + '  1 = Claude (Anthropic) — ต้องผูกบัตร' + LF +
-                   '  2 = Gemini (Google) — มี free tier' + LF + LF + 'ตอนนี้ใช้: ' + aiProvName(cur),
-                   cur==='gemini'?'2':'1');
-  if(ans===null) return false;
-  const p = String(ans).trim()==='2' ? 'gemini' : 'claude';
-  lsSet(AI_PROV_STORE,p);
-  if(p==='gemini') lsSet(GEM_MODEL_STORE,'');
-  const hint = p==='gemini'
-    ? 'วาง Google AI Studio API key (ขึ้นต้นด้วย AIza)' + LF + 'ขอได้ฟรีที่ aistudio.google.com/apikey'
-    : 'วาง Anthropic API key (ขึ้นต้นด้วย sk-ant-)' + LF + 'ขอได้ที่ platform.claude.com';
-  const k=prompt(hint + LF + LF + 'เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น' + LF + 'เว้นว่างแล้วกด OK = ลบ key', aiGetKey(p));
-  if(k===null) return false;
-  aiSetKey(k.trim(), p);
-  return !!k.trim();
-}
-
-// หาโมเดล Gemini ที่ใช้ได้จริงจาก key ของผู้ใช้ (ไม่ hardcode ชื่อรุ่น จะได้ไม่พังตอน Google เปลี่ยนรุ่น)
-async function geminiModel(key){
-  const cached=lsGet(GEM_MODEL_STORE);
-  if(cached) return cached;
-  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?key='+encodeURIComponent(key));
-  if(!r.ok) throw new Error('ดูรายชื่อโมเดลไม่ได้ (HTTP '+r.status+') — key ถูกต้องไหม');
-  const j=await r.json();
-  const usable=(j.models||[])
-    .filter(m=>(m.supportedGenerationMethods||[]).indexOf('generateContent')>=0)
-    .map(m=>String(m.name||'').replace('models/',''))
-    .filter(n=>n && !/embedding|aqa|vision|image|tts|audio|live|native/i.test(n));
-  const score=n=>{ const v=/(\d+)\.(\d+)/.exec(n); const ver=v? (+v[1])*10+(+v[2]) : 0;
-                   return ver*10 + (/flash/i.test(n)?5:0) - (/lite|8b|exp|preview/i.test(n)?3:0); };
-  usable.sort((a,b)=>score(b)-score(a));
-  if(!usable.length) throw new Error('ไม่พบโมเดลที่ใช้ได้กับ key นี้');
-  lsSet(GEM_MODEL_STORE, usable[0]);
-  return usable[0];
-}
-
-const navg2=a=>{ const v=a.filter(x=>x!=null&&!isNaN(x)&&x>0); return v.length? +(v.reduce((s,b)=>s+b,0)/v.length).toFixed(2) : null; };
-
-function weekHeadline(wkey){
-  const wk=WEEKS.find(w=>w.key===wkey); if(!wk) return null;
-  const wd=YIELD_DATA.filter(d=>d.week===wkey);
-  const ot=OT_DATA.filter(d=>d.week===wkey&&otCounted(d));
-  const h=+ot.reduce((s,d)=>s+d.hrs,0).toFixed(1), p=new Set(ot.map(d=>d.emp)).size;
-  return { week:wk.label, units:wd.reduce((s,d)=>s+d.units,0),
-    yieldCut:wYield2(wd.filter(d=>d.type==='DRY-CUT'),'packOut'),
-    yieldBlock:wYield2(wd.filter(d=>d.type==='DRY-Block'),'packOut'),
-    otHours:h||null, otPeople:p||null, otHoursPerPerson: p? +(h/p).toFixed(2):null };
-}
-
-// ประวัติย้อนหลังทุกสัปดาห์ — เก็บเป็น array ขนานกัน (ประหยัดที่กว่าเขียน key ซ้ำทุกสัปดาห์มาก)
-function historyFacts(uptoKey){
-  const ws=WEEKS.filter(w=>w.key<=uptoKey);
-  if(ws.length<2) return null;
-  const r1=v=>v==null?null:+v.toFixed(1);
-  const yq=(w,fn)=>YIELD_DATA.filter(d=>d.week===w.key&&d.type!=='Fresh'&&fn(d));
-  const H={ weeks: ws.map(w=>w.label) };
-  H.units      = ws.map(w=>YIELD_DATA.filter(d=>d.week===w.key).reduce((s,d)=>s+d.units,0));
-  H.yieldCut   = ws.map(w=>r1(wYield(YIELD_DATA.filter(d=>d.week===w.key&&d.type==='DRY-CUT'),'packOut')));
-  H.yieldBlock = ws.map(w=>r1(wYield(YIELD_DATA.filter(d=>d.week===w.key&&d.type==='DRY-Block'),'packOut')));
-  const grades=[...new Set(YIELD_DATA.filter(d=>d.type!=='Fresh').map(d=>d.grade))].sort();
-  const series=(pick,filterGrades)=>{
-    const o={};
-    (filterGrades||grades).forEach(g=>{
-      const arr=ws.map(w=>r1(navg2(yq(w,d=>d.grade===g).map(pick))));
-      if(arr.filter(v=>v!=null).length>=2) o[g]=arr;
-    });
-    return Object.keys(o).length? o : undefined;
-  };
-  H.yieldByGrade = (()=>{ const o={};
-    grades.forEach(g=>{ const arr=ws.map(w=>r1(wYield(yq(w,d=>d.grade===g),'packOut')));
-      if(arr.filter(v=>v!=null).length>=2) o[g]=arr; });
-    return Object.keys(o).length? o : undefined; })();
-  H.ovenCapByGrade = series(d=>d.capOb,  Object.keys(TARGET_CAP_OB));
-  H.ovenProdByGrade= series(d=>d.prodOb, Object.keys(TARGET_PROD_OB));
-  const ot=OT_DATA.filter(otCounted);
-  if(ot.length){
-    H.otHours = ws.map(w=>{ const r=ot.filter(d=>d.week===w.key); return r.length? +r.reduce((s,d)=>s+d.hrs,0).toFixed(1) : null; });
-    H.otPeople= ws.map(w=>{ const r=ot.filter(d=>d.week===w.key); return r.length? new Set(r.map(d=>d.emp)).size : null; });
-    const depts=[...new Set(ot.map(d=>d.dept))].sort();
-    const od={};
-    depts.forEach(g=>{
-      const arr=ws.map(w=>{ const r=ot.filter(d=>d.week===w.key&&d.dept===g); return r.length? +r.reduce((s,d)=>s+d.hrs,0).toFixed(1) : null; });
-      if(arr.filter(v=>v!=null).length>=1) od[g]=arr;
-    });
-    if(Object.keys(od).length) H.otHoursByDept=od;
-  }
-  return H;
-}
-// ใช้ key ภาษาอังกฤษ เพราะตอนใส่ใน URL ตัวอักษรไทยขยายเป็น 9 เท่า
-function weekFacts(wkey){
-  const wk=WEEKS.find(w=>w.key===wkey);
-  const wd=YIELD_DATA.filter(d=>d.week===wkey);
-  const dry=wd.filter(d=>d.type!=='Fresh');
-  const byType=t=>wd.filter(d=>d.type===t);
-  const f={
-    week: wk.label, dateRange: wk.range,
-    units:{ total: wd.reduce((s,d)=>s+d.units,0), dryCut: byType('DRY-CUT').reduce((s,d)=>s+d.units,0),
-            dryBlock: byType('DRY-Block').reduce((s,d)=>s+d.units,0), fresh: byType('Fresh').reduce((s,d)=>s+d.units,0),
-            lots: wd.length },
-    yieldByType:{ dryCut: wYield2(byType('DRY-CUT'),'packOut'),
-                  dryBlock: wYield2(byType('DRY-Block'),'packOut'),
-                  kelp: wYield2(wd.filter(d=>d.grade==='Kelp'),'packOut') },
-    yieldByGrade:{}, ovenProd:{}, ovenCap:{}
-  };
-  [...new Set(dry.map(d=>d.grade))].sort().forEach(g=>{
-    const rows=dry.filter(d=>d.grade===g);
-    const y=wYield2(rows,'packOut'); if(y!=null) f.yieldByGrade[g]=y;
-    const p=navg2(rows.map(d=>d.prodOb));
-    if(p!=null){ const t=TARGET_PROD_OB[g];
-      f.ovenProd[g] = t!=null ? {v:p, target:t, diff:+(p-t).toFixed(2)} : {v:p}; }
-    const c=navg2(rows.map(d=>d.capOb));
-    if(c!=null){ const t=TARGET_CAP_OB[g];
-      f.ovenCap[g] = t!=null ? {v:c, target:t, diff:+(c-t).toFixed(2)} : {v:c}; }
-  });
-  const useNew = wk && wk.num>=NEW_SHEET_FROM_WEEK && PROD_NEW_DATA.length>0;
-  const SRC = useNew?PROD_NEW_DATA:PROD_DATA;
-  const allow={};
-  wd.forEach(d=>{ if(!d.lot) return; (allow[d.lot]=allow[d.lot]||new Set()).add(d.grade); });
-  const wp=SRC.filter(d=>{ const a=allow[d.lot]; return a && a.has(displayGrade(d.gradeRaw,d.size)); });
-  if(wp.length){
-    const kg={}; let tot=0;
-    wp.forEach(d=>{ const g=displayGrade(d.gradeRaw,d.size); kg[g]=(kg[g]||0)+d.kg; tot+=d.kg; });
-    f.packing={ totalKg: Math.round(tot), byGrade:{} };
-    Object.keys(kg).sort((a,b)=>kg[b]-kg[a]).forEach(g=>{ f.packing.byGrade[g]=Math.round(kg[g]); });
-  }
-  const otAll=OT_DATA.filter(d=>d.week===wkey);
-  const ot=otAll.filter(otCounted);
-  if(ot.length){
-    const H=+ot.reduce((s,d)=>s+d.hrs,0).toFixed(1);
-    f.ot={ totalHours:H, peopleWithOT:new Set(ot.map(d=>d.emp)).size, byDept:{}, dailyHours:{} };
-    [...new Set(ot.map(d=>d.dept))].sort().forEach(g=>{
-      const r=ot.filter(d=>d.dept===g);
-      const h=+r.reduce((s,d)=>s+d.hrs,0).toFixed(1), p=new Set(r.map(d=>d.emp)).size;
-      const hc=hcLookup(wkey,g).v;
-      const o={ hours:h, people:p, hoursPerPerson:+(h/p).toFixed(2) };
-      if(hc){ o.headcount=hc; o.hoursPerHead=+(h/hc).toFixed(2); o.pctDoingOT=Math.round(p/hc*100); }
-      f.ot.byDept[g]=o;
-    });
-    [...new Set(ot.map(d=>d.date))].sort().forEach(dt=>{
-      f.ot.dailyHours[dt.slice(5)]=+ot.filter(d=>d.date===dt).reduce((s,d)=>s+d.hrs,0).toFixed(1);
-    });
-    if(otAll.length>ot.length) f.ot.excludedMonthlyStaff=new Set(otAll.filter(d=>!otCounted(d)).map(d=>d.emp)).size;
-  }
-  const i=WEEKS.findIndex(w=>w.key===wkey);
-  if(i>0) f.previousWeek = weekHeadline(WEEKS[i-1].key);
-  return f;
-}
-
-const AI_SYSTEM = [
-'สรุปข้อมูลการผลิตวุ้นเส้น Line 1 สัปดาห์นี้ ให้ผู้บริหารอ่านในที่ประชุม เขียนภาษาไทย 3 ส่วน',
-'1) ภาพรวม 3-4 บรรทัด  2) จุดที่ต้องสนใจ (ต่ำกว่าเป้า ผิดปกติ หรือเปลี่ยนจากสัปดาห์ก่อน)  3) ข้อสังเกตและข้อเสนอแนะ',
-'กติกา: ใช้เฉพาะตัวเลขในข้อมูล ห้ามแต่งเอง · yield เกิน 100% คือบันทึกผิด ให้ชี้ออกมา · ไม่ใช้ตาราง ใช้ย่อหน้ากับ bullet เพราะจะเอาไปวางในอีเมล · ไม่เกิน 1 หน้า',
-'หน่วย: yield=% · ovenProd=kg/man-hr · ovenCap=kg/hr · packing=kg · ot=ชั่วโมง · diff=ผลต่างจากเป้า',
-'ข้อมูลมี 2 ส่วน: current = สัปดาห์ที่ต้องสรุป · history = ย้อนหลังทุกสัปดาห์ เป็น array เรียงตรงกับ history.weeks (null = ไม่มีข้อมูล)',
-'ให้ใช้ history หาแนวโน้ม เช่น ต่ำกว่าเป้าติดกันกี่สัปดาห์ · ดีขึ้นหรือแย่ลง · สัปดาห์นี้ผิดปกติเมื่อเทียบกับที่ผ่านมาไหม อย่าดูแค่สัปดาห์เดียว'
-].join(String.fromCharCode(10));
-
-function aiPanel(html){
-  const p=document.getElementById('ai-panel');
-  p.style.display='block';
-  p.innerHTML=html;
-  p.scrollIntoView({behavior:'smooth', block:'start'});
-}
-
-async function aiSummarize(){
-  if(AI_BUSY) return;
-  if(!CUR_WEEK){ alert('ยังไม่ได้เลือกสัปดาห์'); return; }
-  let prov=aiProvider(), key=aiGetKey(prov);
-  if(!key){ if(!aiAskKey()) return; prov=aiProvider(); key=aiGetKey(prov); }
-  const wk=WEEKS.find(w=>w.key===CUR_WEEK);
-  AI_BUSY=true;
-  aiPanel('<div class="card"><div class="ct">กำลังให้ ' + aiProvName(prov) + ' สรุป ' + wk.label + ' …</div>'
-        + '<div class="cs" style="margin-top:6px">ปกติใช้เวลา 30–60 วินาที อย่าเพิ่งปิดหน้านี้</div></div>');
-  try{
-    const dataTxt='ข้อมูล (JSON):' + String.fromCharCode(10) + JSON.stringify((function(){
-      const p={current:weekFacts(CUR_WEEK)}; const h=historyFacts(CUR_WEEK); if(h) p.history=h; return p; })());
-    let text='', cost=null;
-    if(prov==='gemini'){
-      const model=await geminiModel(key);
-      const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+encodeURIComponent(key),{
-        method:'POST', headers:{'content-type':'application/json'},
-        body: JSON.stringify({
-          system_instruction:{ parts:[{text:AI_SYSTEM}] },
-          contents:[{ role:'user', parts:[{text:dataTxt}] }],
-          generationConfig:{ maxOutputTokens:8192 }
-        })
-      });
-      if(!res.ok){
-        let msg='HTTP '+res.status;
-        try{ const j=await res.json(); if(j.error&&j.error.message) msg=j.error.message; }catch(e){}
-        if(res.status===404){ lsSet(GEM_MODEL_STORE,''); msg='ไม่พบโมเดล ' + model + ' — กดสรุปใหม่อีกครั้งเพื่อค้นหารุ่นใหม่'; }
-        if(res.status===400 && /API key/i.test(msg)) msg='API key ไม่ถูกต้อง — กดปุ่ม "ตั้งค่า key" เพื่อใส่ใหม่';
-        if(res.status===429) msg='เรียกถี่เกินโควตา free tier — รอสักครู่แล้วลองใหม่';
-        throw new Error(msg);
-      }
-      const j=await res.json();
-      const c=(j.candidates||[])[0];
-      if(c && c.finishReason==='SAFETY') throw new Error('AI ปฏิเสธคำขอนี้');
-      text=(((c||{}).content||{}).parts||[]).map(p=>p.text||'').join('').trim();
-      if(!text) throw new Error('AI ไม่ได้ส่งข้อความกลับมา');
-    } else {
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{ 'content-type':'application/json', 'x-api-key':key,
-                  'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:AI_MODEL, max_tokens:16000, system:AI_SYSTEM,
-          messages:[{role:'user', content:dataTxt}] })
-      });
-      if(!res.ok){
-        let msg='HTTP '+res.status;
-        try{ const j=await res.json(); if(j.error&&j.error.message) msg=j.error.message; }catch(e){}
-        if(res.status===401) msg='API key ไม่ถูกต้อง — กดปุ่ม "ตั้งค่า key" เพื่อใส่ใหม่';
-        if(res.status===429) msg='เรียกถี่เกินไปหรือเครดิตหมด ลองใหม่อีกครั้ง';
-        throw new Error(msg);
-      }
-      const j=await res.json();
-      if(j.stop_reason==='refusal') throw new Error('AI ปฏิเสธคำขอนี้');
-      text=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join(String.fromCharCode(10)).trim();
-      if(!text) throw new Error('AI ไม่ได้ส่งข้อความกลับมา');
-      const u=j.usage||{};
-      cost=((u.input_tokens||0)/1e6*5 + (u.output_tokens||0)/1e6*25)*35;
-    }
-    AI_LAST=text;
-    aiPanel('<div class="card">'
-      +'<div class="ch"><div><div class="ct">สรุปโดย AI — ' + wk.label + ' (' + wk.range + ')</div>'
-      +'<div class="cs">โดย ' + aiProvName(prov) + ' · ตรวจตัวเลขอีกครั้งก่อนส่งให้ผู้บริหาร' + (cost!=null? (' · ค่าใช้จ่ายครั้งนี้ ~' + cost.toFixed(2) + ' บาท'):'') + '</div></div>'
-      +'<div style="display:flex;gap:6px;flex:none">'
-      +'<button class="tgl" onclick="aiCopy()">คัดลอก</button>'
-      +'<button class="tgl" onclick="aiSendMail(this)">📧 ส่งอีเมล</button>'
-      +'<button class="tgl" onclick="aiSummarize()">สรุปใหม่</button>'
-      +'<button class="tgl" onclick="aiAskKey()">ตั้งค่า key</button>'
-      +'<button class="tgl" onclick="document.getElementById(\'ai-panel\').style.display=\'none\'">ปิด</button>'
-      +'</div></div>'
-      +'<div id="ai-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.85;color:var(--text);margin-top:6px">'
-      + text.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div></div>');
-  }catch(err){
-    console.error(err);
-    aiPanel('<div class="card"><div class="ct">สรุปไม่สำเร็จ</div>'
-      +'<div class="cs" style="margin-top:6px;color:#DC2626">' + String(err.message).replace(/</g,'&lt;') + '</div>'
-      +'<div style="display:flex;gap:6px;margin-top:12px">'
-      +'<button class="tgl" onclick="aiSummarize()">ลองใหม่</button>'
-      +'<button class="tgl" onclick="aiAskKey()">ตั้งค่า key</button>'
-      +'<button class="tgl" onclick="document.getElementById(\'ai-panel\').style.display=\'none\'">ปิด</button></div></div>');
-  }finally{ AI_BUSY=false; }
-}
-
-// คัดลอกข้อมูล+คำสั่ง เพื่อเอาไปวางใน Claude ที่ใช้ subscription (ไม่ต้องมี API key)
-function aiPromptText(wkey){
-  const LF=String.fromCharCode(10);
-  const payload={ current: weekFacts(wkey) };
-  const h=historyFacts(wkey);
-  if(h) payload.history=h;
-  return AI_SYSTEM + LF + LF + 'ข้อมูล (JSON):' + LF + JSON.stringify(payload);
-}
-function aiCopyPrompt(){
-  if(!CUR_WEEK){ alert('ยังไม่ได้เลือกสัปดาห์'); return; }
-  const wk=WEEKS.find(w=>w.key===CUR_WEEK);
-  const txt=aiPromptText(CUR_WEEK);
-  const h=historyFacts(CUR_WEEK);
-  const nHist=h? h.weeks.length : 1;
-  aiPanel('<div class="card">'
-    +'<div class="ch"><div><div class="ct" id="ai-cp-t">กำลังคัดลอก…</div>'
-    +'<div class="cs">' + wk.label + ' (' + wk.range + ') + ประวัติย้อนหลัง ' + nHist + ' สัปดาห์ · ' + Math.round(txt.length/1000) + ' พันตัวอักษร · ไม่ต้องมี API key</div></div>'
-    +'<div style="display:flex;gap:6px;flex:none">'
-    +'<button class="tgl" onclick="aiCopyPrompt()">คัดลอกอีกครั้ง</button>'
-    +'<button class="tgl" onclick="aiDownload()">ดาวน์โหลดเป็นไฟล์</button>'
-    +'<button class="tgl" onclick="document.getElementById(\'ai-panel\').style.display=\'none\'">ปิด</button>'
-    +'</div></div>'
-    +'<div id="ai-steps" style="font-size:13px;line-height:2;color:var(--text);margin-top:4px"></div>'
-    +'<textarea id="ai-raw" readonly style="width:100%;height:120px;margin-top:12px;font-size:11px;font-family:monospace;'
-    +'border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--muted);padding:8px"></textarea>'
-    +'</div>');
-  const ta=document.getElementById('ai-raw');
-  ta.value=txt;
-  const title=document.getElementById('ai-cp-t');
-  // คัดลอกไว้ก่อนเสมอ (เผื่อทุกกรณี)
-  let copied=false;
-  try{ ta.focus(); ta.select(); ta.setSelectionRange(0, txt.length); copied=document.execCommand('copy'); }catch(e){ copied=false; }
-  if(!copied && navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt).then(()=>{}, ()=>{});
-  }
-  // ข้อมูลสั้นพอ -> ใส่ไปกับ URL ได้เลย กด Enter ทีเดียวจบ
-  // ข้อมูลยาว -> ดาวน์โหลดเป็นไฟล์ให้ลากไปแนบ ดีกว่าตัดข้อมูลทิ้งแล้ว AI วิเคราะห์จากของไม่ครบ
-  const q=encodeURIComponent(txt);
-  const fits = q.length < 9000;
-  if(fits){
-    title.textContent='เปิดแท็บ Claude พร้อมข้อความให้แล้ว — กด Enter ได้เลย';
-    window.open('https://claude.ai/new?q='+q,'_blank','noopener');
-  } else {
-    title.textContent='ข้อมูลเยอะเกินใส่ใน URL — ดาวน์โหลดไฟล์ให้แล้ว ลากไปวางในช่องแชท Claude';
-    aiDownload();
-    window.open('https://claude.ai/new','_blank','noopener');
-  }
-  const steps=document.getElementById('ai-steps');
-  if(steps) steps.innerHTML = fits
-    ? '<b>ขั้นตอนต่อไป</b><br>1 · ดูแท็บ Claude ที่เพิ่งเปิด ข้อความอยู่ในช่องพิมพ์แล้ว<br>2 · กด Enter<br>3 · คัดลอกคำตอบไปวางในอีเมล'
-    : '<b>ขั้นตอนต่อไป</b><br>1 · ดูแท็บ Claude ที่เพิ่งเปิด<br>2 · <b>ลากไฟล์ที่เพิ่งดาวน์โหลด</b> มาวางในช่องแชท แล้วกด Enter<br>3 · คัดลอกคำตอบไปวางในอีเมล<br><span style="color:var(--muted)">(หรือกด Ctrl+V วางข้อความก็ได้ คัดลอกไว้ให้แล้ว)</span>';
-}
-
-// ดาวน์โหลดเป็นไฟล์ .txt เผื่ออยากลากไปแนบใน Claude แทนการวาง
-function aiDownload(){
-  if(!CUR_WEEK) return;
-  const wk=WEEKS.find(w=>w.key===CUR_WEEK);
-  const blob=new Blob([aiPromptText(CUR_WEEK)],{type:'text/plain;charset=utf-8'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='ข้อมูลผลิต-'+wk.label+'.txt';
-  document.body.appendChild(a); a.click();
-  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-}
-
-// ส่งอีเมลผ่านตัวช่วยบนเครื่อง (ต้องเปิดหน้านี้ผ่าน "เปิด Weekly Report.cmd")
-async function aiSendMail(btn){
-  if(!AI_LAST){ alert('ยังไม่มีข้อความสรุป'); return; }
-  const wk=WEEKS.find(w=>w.key===CUR_WEEK);
-  const subject='สรุปรายงานการผลิต Line 1 — ' + wk.label + ' (' + wk.range + ')';
-  const old=btn?btn.textContent:'';
-  if(btn){ btn.textContent='กำลังส่ง…'; btn.disabled=true; }
-  try{
-    const r=await fetch('/send-mail',{ method:'POST', headers:{'content-type':'application/json'},
-      body: JSON.stringify({ subject: subject, body: AI_LAST }) });
-    let j=null; try{ j=await r.json(); }catch(e){}
-    if(r.ok && j && j.ok){
-      if(btn){ btn.textContent='✓ ' + (j.message||'ส่งแล้ว'); }
-      return;
-    }
-    throw new Error((j && j.message) ? j.message : ('ตัวช่วยตอบกลับ HTTP ' + r.status));
-  }catch(err){
-    if(btn){ btn.textContent=old; btn.disabled=false; }
-    const localhost = location.hostname==='localhost' || location.hostname==='127.0.0.1';
-    alert(localhost
-      ? ('ส่งไม่สำเร็จ: ' + err.message)
-      : ('ส่งอีเมลอัตโนมัติต้องเปิดหน้านี้ผ่านไฟล์ "เปิด Weekly Report.cmd" บนเครื่องคุณ' + String.fromCharCode(10) +
-         'ตอนนี้เปิดจาก ' + location.hostname + ' ซึ่งแตะ Outlook ไม่ได้' + String.fromCharCode(10,10) +
-         'ระหว่างนี้กดปุ่ม "คัดลอก" แล้วไปวางในอีเมลเองได้'));
-  }
-}
-
-function aiCopy(){
-  if(!AI_LAST) return;
-  navigator.clipboard.writeText(AI_LAST).then(()=>alert('คัดลอกแล้ว'),()=>alert('คัดลอกไม่สำเร็จ'));
-}
-function aiMail(){
-  if(!AI_LAST) return;
-  const wk=WEEKS.find(w=>w.key===CUR_WEEK);
-  const subj='สรุปรายงานการผลิต Line 1 — ' + wk.label + ' (' + wk.range + ')';
-  window.location.href='mailto:?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(AI_LAST);
-}
 function mkCh(id,type,data,opts){
   if(CH[id]){CH[id].destroy();delete CH[id];}
   CH[id]=new Chart(document.getElementById(id),{type,data,options:{responsive:true,maintainAspectRatio:false,...opts}});
@@ -2345,7 +2117,6 @@ function wYield(rows, outKey){
   rows.forEach(d=>{ const i=d.dryIn, o=d[outKey]; if(i>0 && o>0){ a+=i; b+=o; } });
   return a>0 ? b/a*100 : null;
 }
-function wYield2(rows, outKey){ const v=wYield(rows,outKey); return v==null?null:+v.toFixed(2); }
 function navg(a){const v=a.filter(x=>x!=null&&!isNaN(x)&&x>0);return v.length?v.reduce((a,b)=>a+b)/v.length:null;}
 function sum(a,k){return a.reduce((s,d)=>s+(+d[k]||0),0);}
 function fmt(n){return n!=null?Number(Math.round(n)).toLocaleString():'—';}
