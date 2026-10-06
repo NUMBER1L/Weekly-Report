@@ -1103,7 +1103,7 @@ function parseProd(rows){
     let size=rawSize.replace(/\s+/g,'');
     if(rawSize.includes('10kg') && rawSize.includes('van')) size='10kgVan';
     else if(rawSize.includes('10kg')) size='10kg';
-    if(size==='10kgVan') continue;   // 10kgVan (Van Sale) ไม่นำมาคำนวณทุกเกรด
+    if(size==='10kgVan' || isVanSale(r[5], r[7])) continue;   // Van Sale ไม่นำมาคำนวณ (10kgVan ทุกเกรด / แวนมาม่า / มาม่า vansale)
     const man = +r[9]||0, hr = +r[10]||0;
     const manHr = man * hr;
     out.push({
@@ -1117,6 +1117,10 @@ function parseProd(rows){
   }
   return out;
 }
+
+// ── Van Sale (ของขายรถแวน) ไม่นำมาคำนวณในตารางบรรจุ/Productivity — ดูจากช่อง Grade หรือ Customer
+//    เช่น Grade "แวนมาม่า" หรือ Customer "มาม่า vansale" (ขนาด 10kgVan ตัดแยกอีกที)
+function isVanSale(grade, cust){ return /แวน|van\s*-?\s*sale/i.test(String(grade||'')+' '+String(cust||'')); }
 
 // ── Parse Sheet "Productivity-ใหม่" ───────────────────────────────
 // Col 0=วันที่บรรจุ, 3=LOT, 5=Grade, 6=Size, 7=Column1(sub-grade)
@@ -1145,7 +1149,7 @@ function parseProdNew(rows){
     let size=rawSize.replace(/\s+/g,'');
     if(rawSize.includes('10kg') && rawSize.includes('van')) size='10kgVan';
     else if(rawSize.includes('10kg')) size='10kg';
-    if(size==='10kgVan') continue;   // 10kgVan (Van Sale) ไม่นำมาคำนวณทุกเกรด
+    if(size==='10kgVan' || isVanSale(r[5], r[7])) continue;   // Van Sale ไม่นำมาคำนวณ (10kgVan ทุกเกรด / แวนมาม่า / มาม่า vansale)
     out.push({
       date:iso, week:wkey, weekNum:wk, lot:lotNum,
       gradeRaw:String(r[5]||'').trim(),
