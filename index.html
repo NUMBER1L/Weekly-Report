@@ -1018,6 +1018,9 @@ function displayGrade(grade, size){
   // ── Kelp
   if(g==='KELP') return 'Kelp';
 
+  // ── SWP50g — ฝั่งบรรจุลง Grade "SWP" + Size "50g", Yield ลง "SWP50g"
+  if(g==='SWP50G' || (g==='SWP' && s.startsWith('50g'))) return 'SWP50g';
+
   // ── Sweet potato
   if(g==='SWEETPOTATO' || g.includes('SWEETPO')) return 'sweet potato';
 
