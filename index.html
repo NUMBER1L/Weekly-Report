@@ -1119,8 +1119,9 @@ function parseProd(rows){
 }
 
 // ── Van Sale (ของขายรถแวน) ไม่นำมาคำนวณในตารางบรรจุ/Productivity — ดูจากช่อง Grade หรือ Customer
-//    เช่น Grade "แวนมาม่า" หรือ Customer "มาม่า vansale" (ขนาด 10kgVan ตัดแยกอีกที)
-function isVanSale(grade, cust){ return /แวน|van\s*-?\s*sale/i.test(String(grade||'')+' '+String(cust||'')); }
+//    เช่น Grade "แวนมาม่า" / "van(cma)" หรือ Customer "มาม่า vansale" (ขนาด 10kgVan ตัดแยกอีกที)
+function isVanSale(grade, cust){   // แวน… / van(cma) / vansale / van sale — 'van' ต้องเป็นคำแยก (กันชื่อที่มี van อยู่กลางคำ)
+  return /แวน|(^|[^a-z])van([^a-z]|$)|van\s*-?\s*sale/i.test(String(grade||'')+' '+String(cust||'')); }
 
 // ── Parse Sheet "Productivity-ใหม่" ───────────────────────────────
 // Col 0=วันที่บรรจุ, 3=LOT, 5=Grade, 6=Size, 7=Column1(sub-grade)
