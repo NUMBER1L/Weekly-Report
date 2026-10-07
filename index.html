@@ -2026,13 +2026,21 @@ function renderOT(wkey){
   if(CH['cOTDaily']){CH['cOTDaily'].destroy();delete CH['cOTDaily'];}
   const sum=a=>a.reduce((s,d)=>s+d.hrs,0);
   const uniq=(a,f)=>[...new Set(a.map(f))].length;
+  // การ์ดกราฟรายวัน + ตารางรายแผนก — ซ่อนตอนสัปดาห์นี้ไม่มีข้อมูล OT (ไม่ให้เห็นกรอบเปล่าทับข้อความแนะนำ)
+  const otCards=[document.getElementById('cOTDaily'), dtbl].map(e=>e&&e.closest('.card')).filter(Boolean);
+  otCards.forEach(c=>c.style.display = rows.length ? '' : 'none');
 
   if(!rows.length){
     head.innerHTML='';
-    kpi.innerHTML='<div class="kpi" style="--acc:#94A3B8"><div class="kl">OT สัปดาห์นี้</div><div class="kv">—</div><div class="ks">ยังไม่มีไฟล์ OT ของสัปดาห์นี้</div></div>';
+    kpi.innerHTML='<div class="kpi" style="--acc:#94A3B8"><div class="kl">OT สัปดาห์นี้</div><div class="kv">—</div><div class="ks">ไฟล์ OT ที่โหลดไม่มีวันที่ของสัปดาห์นี้</div></div>';
     if(dtbl) dtbl.innerHTML='';
-    const other=[...new Set(OT_DATA.map(d=>d.week))].sort();
-    note.textContent = other.length ? ('ไฟล์ OT ที่โหลดไว้มีข้อมูลของสัปดาห์: ' + other.join(', ')) : '';
+    // บอกให้ชัดว่าไฟล์ที่โหลดมีวันที่ช่วงไหน และสัปดาห์นี้ต้อง export ช่วงไหน
+    const ds=OT_DATA.map(d=>d.date).sort();
+    const wks=[...new Set(OT_DATA.map(d=>d.week))].sort().map(k=>{ const w=WEEKS.find(x=>x.key===k); return w?w.label:k.replace(/^\d+-/,''); });
+    note.innerHTML = ds.length
+      ? '📅 ไฟล์ OT ที่โหลดมีข้อมูลวันที่ <b>'+fmtD(ds[0])+' – '+fmtD(ds[ds.length-1])+'</b> ('+wks.join(', ')+')<br>'
+        +'👉 ถ้าจะดู OT ของ '+(wk?wk.label+' ('+wk.range+')':'สัปดาห์นี้')+' ให้ export ไฟล์ OT จาก Human OS ให้ครอบคลุมช่วงวันที่นี้ แล้วลากเข้ามาใหม่'
+      : '';
     return;
   }
 
