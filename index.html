@@ -939,8 +939,8 @@ function normalizeGrade(raw){
   }
 
   // ── DD Balance / Blue / Dry Korean
-  if(n==='ddbalance') return 'DD Balance';
-  if(n==='ddblue') return 'DD Blue';
+  if(n==='ddbalance' || n.includes('ddbalan') || n.includes('ddblanc')) return 'DD Balance';   // รวมพิมพ์ผิด "DD Blance"
+  if(/^ddb[li1]ue$/.test(n)) return 'DD Blue';                                                    // รวมพิมพ์ผิด "DD Biue"
   if(n==='เกาหลีแห้งdd' || n.includes('drykorean')) return 'DD Dry Korean';
 
   // ── Kelp
@@ -972,8 +972,8 @@ function displayGrade(grade, size){
   //    ยึดตาม Yield (คนละตัวกับ A crystal ที่เป็น Fresh) — ตรวจก่อนกฎอื่นเพราะดูจาก size
   if(s.includes('คริสตัล') || g.includes('คริสตัล')) return 'คริสตัลเรดดี้ 40g';
 
-  // ── A-ayam — Productivity เขียนเว้นวรรค "A ayam", Yield เขียนขีด "A-ayam"
-  if(g==='AAYAM' || g==='A-AYAM') return 'A-ayam';
+  // ── A-ayam — Productivity เขียน "A ayam" / "A-ayam" / "Ayam" เฉยๆ, Yield เขียน "A-ayam"
+  if(g==='AAYAM' || g==='A-AYAM' || g==='AYAM') return 'A-ayam';
 
   // ── DK Portion (22g)
   if(g==='DKPORTION' || g==='DK-PORTION' || g==='DK' || g.includes('DKPORT')) return 'DK Portion';
@@ -1011,9 +1011,9 @@ function displayGrade(grade, size){
 
   // ── DD Balance / Blue / Dry Korean
   if(g==='DDBALANCE') return 'DD Balance';
-  if(g==='DDBLUE') return 'DD Blue';
+  if(/^DDB[LI1]UE$/.test(g)) return 'DD Blue';   // รวมพิมพ์ผิด "DD Biue" (i แทน l)
   if(g==='DDDRYKOREAN' || g.includes('DRYKOR')) return 'DD Dry Korean';   // รวมพิมพ์ผิด "DD Dry koren"
-  if(g.includes('DDBALAN')) return 'DD Balance';                           // รวมพิมพ์ผิด "A DD Balanec"
+  if(g.includes('DDBALAN') || g.includes('DDBLANC')) return 'DD Balance';  // รวมพิมพ์ผิด "A DD Balanec" / "DD Blance"
 
   // ── Kelp
   if(g==='KELP') return 'Kelp';
